@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "raw_zone" {
-  bucket_prefix = "${var.project_name}-raw-zone-"
+  bucket        = "${var.project_name}-raw-zone-oluwakayode-dev"
   force_destroy = true
 }
 

@@ -4,7 +4,7 @@ apache-airflow-providers-common-sql
 apache-airflow-providers-http
 apache-airflow-providers-smtp
 boto3
-airflow.providers.snowflake
+apache-airflow-providers-snowflake
 snowflake-connector-python
 snowflake-sqlalchemy
 snowflake-snowpark-python

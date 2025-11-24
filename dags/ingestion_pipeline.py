@@ -1,7 +1,10 @@
-from airflow.sdk import dag, task_group, Variable
+from airflow.sdk import dag, task_group, Variable, Asset
 from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.latest_only import LatestOnlyOperator
 from pendulum import duration, datetime
+
+from assets import S3_RAW_DATA_READY
 
 default_args = {
     'owner': 'Oluwakayode',
@@ -16,7 +19,7 @@ default_args = {
     schedule="@daily", 
     start_date=datetime(2025, 11, 20),
     catchup=True, 
-    tags=["ingestion", "elt"],
+    tags=["ingestion", "elt"]
 )
 def ingestion_pipeline():
 
@@ -79,9 +82,26 @@ def ingestion_pipeline():
             params={"src_bucket": SOURCE_BUCKET, "tgt_bucket": RAW_BUCKET},
         )
 
-        latest_only >> extract_customers
+        extract_agents = BashOperator(
+            task_id="extract_agents_gsheet",
+            bash_command="""
+                python /opt/airflow/scripts/extract_gsheets.py \
+                --target_bucket {{ params.bucket }}
+            """,
+            params={"bucket": RAW_BUCKET},
+        )
 
-    daily_ingestion()
-    static_ingestion()
+        latest_only >> [extract_customers, extract_agents]
+
+    daily_group = daily_ingestion()
+    static_group = static_ingestion()
+
+
+    mark_done = EmptyOperator(
+        task_id="mark_ingestion_complete",
+        outlets=[S3_RAW_DATA_READY]
+    )
+
+    [daily_group, static_group] >> mark_done
 
 ingestion_pipeline()

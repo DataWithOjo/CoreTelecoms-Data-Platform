@@ -18,3 +18,5 @@ psycopg2-binary
 astronomer-cosmos
 gspread
 oauth2client
+pytest
+flake8

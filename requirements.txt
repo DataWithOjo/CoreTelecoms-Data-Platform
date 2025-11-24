@@ -20,3 +20,4 @@ gspread
 oauth2client
 pytest
 flake8
+moto

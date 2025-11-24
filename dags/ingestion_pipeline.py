@@ -1,7 +1,6 @@
-from airflow.sdk import dag, task_group, Variable, Asset
+from airflow.sdk import dag, task_group
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
-from airflow.providers.standard.operators.latest_only import LatestOnlyOperator
 from pendulum import duration, datetime
 
 from assets import S3_RAW_DATA_READY
@@ -15,87 +14,78 @@ default_args = {
 @dag(
     dag_id="ingestion_pipeline",
     default_args=default_args,
-    description="Ingests Postgres, S3 Logs, and Customer Static Data",
+    description="Ingests Postgres, S3 Logs, Google Sheet and Customer Static Data",
     schedule="@daily", 
     start_date=datetime(2025, 11, 20),
     catchup=True, 
-    tags=["ingestion", "elt"]
+    tags=["ingestion", "etl"]
 )
 def ingestion_pipeline():
 
-    RAW_BUCKET = Variable.get("S3_RAW_BUCKET")
-    SOURCE_BUCKET = Variable.get("SOURCE_S3_BUCKET")
+    DEFAULT_RAW_BUCKET = "coretelecoms-raw-zone-oluwakayode-dev"
+    DEFAULT_SOURCE_BUCKET = "core-telecoms-data-lake"
 
     @task_group(group_id="daily_ingestion")
     def daily_ingestion():
         
         extract_postgres = BashOperator(
             task_id="extract_postgres",
-            bash_command="""
+            bash_command=f"""
                 python /opt/airflow/scripts/extract_postgres.py \
-                --execution_date {{ ds }} \
-                --target_bucket {{ params.bucket }}
-            """,
-            params={"bucket": RAW_BUCKET},
+                --execution_date {{{{ ds }}}} \
+                --target_bucket {{{{ var.value.get('S3_RAW_BUCKET', '{DEFAULT_RAW_BUCKET}') }}}}
+            """
         )
-
+        
         extract_call_logs = BashOperator(
             task_id="extract_call_logs",
-            bash_command="""
+            bash_command=f"""
                 python /opt/airflow/scripts/extract_s3_data.py \
-                --execution_date {{ ds }} \
-                --source_bucket {{ params.src_bucket }} \
+                --execution_date {{{{ ds }}}} \
+                --source_bucket {{{{ var.value.get('SOURCE_S3_BUCKET', '{DEFAULT_SOURCE_BUCKET}') }}}} \
                 --source_prefix "call_logs" \
-                --target_bucket {{ params.tgt_bucket }} \
+                --target_bucket {{{{ var.value.get('S3_RAW_BUCKET', '{DEFAULT_RAW_BUCKET}') }}}} \
                 --file_type csv
-            """,
-            params={"src_bucket": SOURCE_BUCKET, "tgt_bucket": RAW_BUCKET},
+            """
         )
 
         extract_social = BashOperator(
             task_id="extract_social_media",
-            bash_command="""
+            bash_command=f"""
                 python /opt/airflow/scripts/extract_s3_data.py \
-                --execution_date {{ ds }} \
-                --source_bucket {{ params.src_bucket }} \
+                --execution_date {{{{ ds }}}} \
+                --source_bucket {{{{ var.value.get('SOURCE_S3_BUCKET', '{DEFAULT_SOURCE_BUCKET}') }}}} \
                 --source_prefix "media_complaint" \
-                --target_bucket {{ params.tgt_bucket }} \
+                --target_bucket {{{{ var.value.get('S3_RAW_BUCKET', '{DEFAULT_RAW_BUCKET}') }}}} \
                 --file_type json
-            """,
-            params={"src_bucket": SOURCE_BUCKET, "tgt_bucket": RAW_BUCKET},
+            """
         )
 
     @task_group(group_id="static_ingestion")
     def static_ingestion():
-        latest_only = LatestOnlyOperator(task_id="latest_only")
-
+        
         extract_customers = BashOperator(
             task_id="extract_customers",
-            bash_command="""
+            bash_command=f"""
                 python /opt/airflow/scripts/extract_s3_data.py \
                 --execution_date "STATIC" \
-                --source_bucket {{ params.src_bucket }} \
+                --source_bucket {{{{ var.value.get('SOURCE_S3_BUCKET', '{DEFAULT_SOURCE_BUCKET}') }}}} \
                 --source_prefix "static" \
-                --target_bucket {{ params.tgt_bucket }} \
+                --target_bucket {{{{ var.value.get('S3_RAW_BUCKET', '{DEFAULT_RAW_BUCKET}') }}}} \
                 --file_type csv
-            """,
-            params={"src_bucket": SOURCE_BUCKET, "tgt_bucket": RAW_BUCKET},
+            """
         )
 
         extract_agents = BashOperator(
             task_id="extract_agents_gsheet",
-            bash_command="""
+            bash_command=f"""
                 python /opt/airflow/scripts/extract_gsheets.py \
-                --target_bucket {{ params.bucket }}
-            """,
-            params={"bucket": RAW_BUCKET},
+                --target_bucket {{{{ var.value.get('S3_RAW_BUCKET', '{DEFAULT_RAW_BUCKET}') }}}}
+            """
         )
-
-        latest_only >> [extract_customers, extract_agents]
 
     daily_group = daily_ingestion()
     static_group = static_ingestion()
-
 
     mark_done = EmptyOperator(
         task_id="mark_ingestion_complete",

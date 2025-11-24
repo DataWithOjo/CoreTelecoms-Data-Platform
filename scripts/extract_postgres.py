@@ -5,53 +5,83 @@ import polars as pl
 import argparse
 import logging
 from datetime import datetime
+from typing import Dict, Any
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("postgres_extractor")
 
-def extract_and_upload(execution_date_str, target_bucket):
+class ConfigError(Exception):
+    """Raised when configuration or environment variables are missing."""
+    pass
+
+class ExtractionError(Exception):
+    """Raised when the extraction process fails."""
+    pass
+
+def get_db_uri() -> str:
+    """
+    Constructs the Postgres connection URI from environment variables.
+    Validates that all required variables are present.
+    """
+    try:
+        user = os.environ["POSTGRES_USER"]
+        password = os.environ["POSTGRES_PASSWORD"]
+        host = os.environ["POSTGRES_HOST"]
+        port = os.environ.get("POSTGRES_PORT", "6543")
+        db_name = os.environ["POSTGRES_DB"]
+        
+        return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+    except KeyError as e:
+        raise ConfigError(f"Missing required environment variable: {e}")
+
+def get_s3_client() -> Any:
+    """Initialize Boto3 S3 client using standard AWS env vars."""
+    try:
+        return boto3.client('s3')
+    except Exception as e:
+        raise ConfigError(f"Failed to initialize S3 client: {e}")
+
+def extract_and_upload(execution_date_str: str, target_bucket: str) -> None:
+    """
+    Main ETL function: Extract from DB to target s3 in Parquet format.
+    """
     logger.info(f"Starting Postgres extraction for date: {execution_date_str}")
     
     SCHEMA_NAME = "customer_complaints"
-    
-    try:
-        date_obj = datetime.strptime(execution_date_str, "%Y-%m-%d")
-        table_suffix = date_obj.strftime("%Y_%m_%d")
-        table_name = f"Web_form_request_{table_suffix}"
-        full_table_name = f"{SCHEMA_NAME}.{table_name}"
-        logger.info(f"Targeting Table: {full_table_name}")
-    except ValueError as e:
-        logger.error(f"Date format error: {e}")
-        sys.exit(1)
+    local_path = None
 
     try:
-        db_user = os.getenv("POSTGRES_USER")
-        db_pass = os.getenv("POSTGRES_PASSWORD")
-        db_host = os.getenv("POSTGRES_HOST")
-        db_port = os.getenv("POSTGRES_PORT")
-        db_name = os.getenv("POSTGRES_DB")
-        
-        if not all([db_user, db_pass, db_host, db_name]):
-             raise ValueError("Missing one or more Postgres environment variables.")
+        uri = get_db_uri()
+        s3 = get_s3_client()
 
-        uri = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
-    except Exception as e:
-        logger.error(f"Config Error: {e}")
-        sys.exit(1)
+        try:
+            date_obj = datetime.strptime(execution_date_str, "%Y-%m-%d")
+            table_suffix = date_obj.strftime("%Y_%m_%d")
+            table_name = f"Web_form_request_{table_suffix}"
+            full_table_name = f"{SCHEMA_NAME}.{table_name}"
+            logger.info(f"Targeting Table: {full_table_name}")
+        except ValueError as e:
+            raise ConfigError(f"Invalid date format. Expected YYYY-MM-DD. Error: {e}")
 
-    try:
         query = f"SELECT * FROM {full_table_name}"
         logger.info(f"Executing Query: {query}")
         
-        df = pl.read_database_uri(query, uri)
-        
+        try:
+            df = pl.read_database_uri(query, uri)
+        except Exception as e:
+            if "relation" in str(e) and "does not exist" in str(e):
+                logger.error(f"MISSING TABLE: {full_table_name} does not exist in the source DB.")
+                raise ExtractionError(f"Source table missing for {execution_date_str}")
+            else:
+                raise e
+
         current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         df = df.with_columns(pl.lit(current_time).alias("load_time"))
-
+        
         logger.info(f"Extracted {df.height} rows.")
         
         local_file = f"web_complaints_{table_suffix}.parquet"
@@ -61,24 +91,24 @@ def extract_and_upload(execution_date_str, target_bucket):
         s3_key = f"raw/postgres/{execution_date_str}/{local_file}"
         logger.info(f"Uploading to s3://{target_bucket}/{s3_key}...")
         
-        s3 = boto3.client('s3')
         s3.upload_file(local_path, target_bucket, s3_key)
-        
-        os.remove(local_path)
-        logger.info("Success!")
+        logger.info("Upload Success!")
 
+    except (ConfigError, ExtractionError) as e:
+        logger.error(f"Operational Error: {e}")
+        sys.exit(1)
     except Exception as e:
-        if "relation" in str(e) and "does not exist" in str(e):
-            logger.warning(f"Table {full_table_name} not found. Skipping this date.")
-            sys.exit(0)
-        else:
-            logger.error(f"Critical Extraction Failure: {e}", exc_info=True)
-            sys.exit(1)
+        logger.error(f"Unexpected System Error: {e}", exc_info=True)
+        sys.exit(1)
+    finally:
+        if local_path and os.path.exists(local_path):
+            logger.info(f"Cleaning up local file: {local_path}")
+            os.remove(local_path)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--execution_date", required=True)
-    parser.add_argument("--target_bucket", required=True)
+    parser = argparse.ArgumentParser(description="Postgres to S3 Extraction Script")
+    parser.add_argument("--execution_date", required=True, help="Logical date (YYYY-MM-DD)")
+    parser.add_argument("--target_bucket", required=True, help="S3 Bucket Name")
     args = parser.parse_args()
     
     extract_and_upload(args.execution_date, args.target_bucket)

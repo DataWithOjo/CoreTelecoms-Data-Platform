@@ -7,3 +7,4 @@ config/
 logs/
 *.pyc
 **/__pycache__/
+google_credentials.json

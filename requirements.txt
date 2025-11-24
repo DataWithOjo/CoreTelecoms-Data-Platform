@@ -16,3 +16,5 @@ adbc-driver-postgresql
 dbt-snowflake
 psycopg2-binary
 astronomer-cosmos
+gspread
+oauth2client

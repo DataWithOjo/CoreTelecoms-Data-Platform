@@ -11,8 +11,31 @@ from extract_postgres import extract_and_upload
 # S3 Extraction Tests
 # ---------------------------------------------------------
 
+def test_s3_static_customers_success(s3_setup):
+    """
+    NEW TEST: Verifies that the 'static' prefix correctly maps 
+    to the customers dataset path.
+    """
+    s3 = s3_setup
+    source_bucket = "core-telecoms-data-lake"
+    target_bucket = "target-bucket-dev"
+    
+    source_key = "customers/customers_dataset.csv"
+    
+    csv_content = b"customer_id,name,join_date\n101,Alice,2023-01-01"
+    s3.put_object(Bucket=source_bucket, Key=source_key, Body=csv_content)
+
+    extract_s3_to_s3("STATIC", source_bucket, "static", target_bucket, "csv")
+
+    expected_key = "raw/customers/customers_dataset.parquet"
+    
+    objects = s3.list_objects(Bucket=target_bucket)
+    keys = [o['Key'] for o in objects.get('Contents', [])]
+    
+    assert expected_key in keys, f"Expected {expected_key} but found {keys}"
+
 def test_s3_call_logs_csv_success(s3_setup):
-    """Test successful extraction of Call Logs CSV."""
+    """Test successful extraction of Call Logs CSV with new naming convention."""
     s3 = s3_setup
     source_bucket = "core-telecoms-data-lake"
     target_bucket = "target-bucket-dev"
@@ -25,10 +48,12 @@ def test_s3_call_logs_csv_success(s3_setup):
 
     extract_s3_to_s3(date, source_bucket, "call_logs", target_bucket, "csv")
 
-    expected_key = f"raw/call_logs/{date}/data.parquet"
+    expected_key = f"raw/call_logs/{date}/call_logs_{date}.parquet"
+    
     objects = s3.list_objects(Bucket=target_bucket)
     keys = [o['Key'] for o in objects.get('Contents', [])]
-    assert expected_key in keys
+    
+    assert expected_key in keys, f"Expected {expected_key} but found {keys}"
 
 def test_s3_missing_file_skips(s3_setup):
     """Test that missing files trigger SystemExit(99) skip instead of failure."""
@@ -42,6 +67,7 @@ def test_s3_missing_file_skips(s3_setup):
     assert e.value.code == 99
 
 def test_s3_social_media_json_structure(s3_setup):
+    """Test successful extraction of Social Media JSON with new naming convention."""
     s3 = s3_setup
     source_bucket = "core-telecoms-data-lake"
     target_bucket = "target-bucket-dev"
@@ -54,10 +80,12 @@ def test_s3_social_media_json_structure(s3_setup):
 
     extract_s3_to_s3(date, source_bucket, "media_complaint", target_bucket, "json")
 
-    expected_key = f"raw/social_media/{date}/data.parquet"
+    expected_key = f"raw/social_media/{date}/social_media_{date}.parquet"
+    
     objects = s3.list_objects(Bucket=target_bucket)
     keys = [o['Key'] for o in objects.get('Contents', [])]
-    assert expected_key in keys
+    
+    assert expected_key in keys, f"Expected {expected_key} but found {keys}"
 
 # ---------------------------------------------------------
 # Google Extraction Tests
@@ -109,7 +137,6 @@ def test_postgres_logic(mock_env, mock_boto, mock_read_db, mock_create_engine):
     mock_env.__getitem__.side_effect = env_vars.__getitem__
     mock_env.get.side_effect = env_vars.get
 
-
     mock_engine = MagicMock()
     mock_connection = MagicMock()
     mock_create_engine.return_value = mock_engine
@@ -128,7 +155,6 @@ def test_postgres_logic(mock_env, mock_boto, mock_read_db, mock_create_engine):
     call_kwargs = mock_read_db.call_args[1]
     assert call_kwargs['connection'] == mock_connection
     
-    call_args = mock_read_db.call_args[1]
     assert "Web_form_request_2025_11_20" in call_kwargs['query']
-
+    
     mock_s3.upload_file.assert_called_once()

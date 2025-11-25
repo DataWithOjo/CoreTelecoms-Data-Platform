@@ -39,7 +39,8 @@ def construct_paths(execution_date: str, prefix: str) -> Dict[str, str]:
     """
     Maps Logical Prefix (from DAG) to Physical S3 Path.
     """
-    if execution_date == "STATIC":
+
+    if execution_date == "STATIC" or prefix == "static":
         return {
             "source_key": "customers/customers_dataset.csv",
             "target_key": "raw/customers/customers_dataset.parquet"
@@ -48,31 +49,40 @@ def construct_paths(execution_date: str, prefix: str) -> Dict[str, str]:
     if prefix == "call_logs":
         return {
             "source_key": f"call logs/call_logs_day_{execution_date}.csv",
-            "target_key": f"raw/call_logs/{execution_date}/data.parquet"
+            "target_key": f"raw/call_logs/{execution_date}/call_logs_{execution_date}.parquet"
         }
     
     if prefix == "media_complaint":
         return {
             "source_key": f"social_medias/media_complaint_day_{execution_date}.json",
-            "target_key": f"raw/social_media/{execution_date}/data.parquet"
+            "target_key": f"raw/social_media/{execution_date}/social_media_{execution_date}.parquet"
         }
     
     raise ExtractionError(f"Unknown source prefix: {prefix}")
 
 def process_file(local_path: str, file_type: str) -> pl.DataFrame:
     try:
+        df = None
         if file_type == "csv":
-            return pl.read_csv(local_path, infer_schema_length=0)
+            df = pl.read_csv(local_path, infer_schema_length=0)
         
-        if file_type == "json":
+        elif file_type == "json":
             logger.info("Parsing JSON (Standard Library)...")
             with open(local_path, 'r') as f:
                 data = json.load(f)
-            
             logger.info("Converting to Polars DataFrame...")
-            return pl.DataFrame(data)
+            df = pl.DataFrame(data)
             
-        raise ExtractionError(f"Unsupported file type: {file_type}")
+        else:
+            raise ExtractionError(f"Unsupported file type: {file_type}")
+
+        new_columns = {
+            col: col.strip().lower().replace(" ", "_") 
+            for col in df.columns
+        }
+        df = df.rename(new_columns)
+        
+        return df
         
     except Exception as e:
         raise ExtractionError(f"Failed to parse file {local_path}: {e}")

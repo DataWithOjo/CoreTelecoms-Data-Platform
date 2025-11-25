@@ -4,8 +4,9 @@ import boto3
 import polars as pl
 import argparse
 import logging
+import json 
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,19 +16,9 @@ logging.basicConfig(
 logger = logging.getLogger("s3_extractor")
 
 class ExtractionError(Exception):
-    """Custom exception for extraction failures."""
     pass
 
 def get_aws_credentials(prefix: str = "") -> Dict[str, str]:
-    """
-    Retrieves AWS credentials from environment variables safely.
-    
-    Args:
-        prefix (str): Prefix for env vars (e.g., 'SOURCE' for 'SOURCE_AWS_ACCESS_KEY_ID').
-    
-    Returns:
-        Dict[str, str]: Dictionary compatible with boto3 client.
-    """
     p = f"{prefix}_" if prefix else ""
     try:
         return {
@@ -39,7 +30,6 @@ def get_aws_credentials(prefix: str = "") -> Dict[str, str]:
         raise ExtractionError(f"Missing environment variable: {e}")
 
 def get_s3_client(creds: Dict[str, str]) -> Any:
-    """Initialize Boto3 S3 client with error handling."""
     try:
         return boto3.client('s3', **creds)
     except Exception as e:
@@ -47,14 +37,7 @@ def get_s3_client(creds: Dict[str, str]) -> Any:
 
 def construct_paths(execution_date: str, prefix: str) -> Dict[str, str]:
     """
-    Determines source and target paths based on the dataset type and date.
-    
-    Args:
-        execution_date (str): Logical date (YYYY-MM-DD).
-        prefix (str): Dataset identifier ('call_logs', 'media_complaint', etc.).
-        
-    Returns:
-        Dict[str, str]: 'source_key' and 'target_key'.
+    Maps Logical Prefix (from DAG) to Physical S3 Path.
     """
     if execution_date == "STATIC":
         return {
@@ -77,16 +60,17 @@ def construct_paths(execution_date: str, prefix: str) -> Dict[str, str]:
     raise ExtractionError(f"Unknown source prefix: {prefix}")
 
 def process_file(local_path: str, file_type: str) -> pl.DataFrame:
-    """
-    Reads local file into Polars DataFrame based on type.
-    """
     try:
         if file_type == "csv":
             return pl.read_csv(local_path, infer_schema_length=0)
         
         if file_type == "json":
-            logger.info("Parsing JSON (handling column-oriented format)...")
-            return pl.read_json(local_path)
+            logger.info("Parsing JSON (Standard Library)...")
+            with open(local_path, 'r') as f:
+                data = json.load(f)
+            
+            logger.info("Converting to Polars DataFrame...")
+            return pl.DataFrame(data)
             
         raise ExtractionError(f"Unsupported file type: {file_type}")
         
@@ -100,9 +84,6 @@ def extract_s3_to_s3(
     target_bucket: str, 
     file_type: str
 ) -> None:
-    """
-    Main orchestration function for S3->S3 extraction.
-    """
     logger.info(f"Starting S3 Extraction for {execution_date_str} | Type: {file_type}")
 
     try:
@@ -119,13 +100,14 @@ def extract_s3_to_s3(
         temp_input = f"/tmp/input_{safe_name}"
         
         try:
-            logger.info(f"Downloading to {temp_input}...")
+            logger.info(f"⬇Downloading to {temp_input}...")
             source_s3.download_file(source_bucket, source_key, temp_input)
         except Exception as e:
             if "404" in str(e) or "Not Found" in str(e):
-                logger.error(f"FILE MISSING: {source_key}")
-                sys.exit(1)
-            raise ExtractionError(f"Download failed: {e}")
+                logger.warning(f"SKIPPING: File {source_key} not found in S3. Data likely not ready.")
+                sys.exit(99)
+            else:
+                raise ExtractionError(f"Download failed: {e}")
 
         df = process_file(temp_input, file_type)
         
@@ -145,21 +127,17 @@ def extract_s3_to_s3(
         
         logger.info("Extraction Success!")
 
-    except ExtractionError as e:
-        logger.error(f"Logical Error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Unexpected System Error: {e}", exc_info=True)
+    except (ExtractionError, Exception) as e:
+        logger.error(f"Operation Failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="S3 to S3 ETL Script")
-    parser.add_argument("--execution_date", required=True, help="YYYY-MM-DD or 'STATIC'")
-    parser.add_argument("--source_bucket", required=True, help="Source S3 Bucket Name")
-    parser.add_argument("--source_prefix", required=True, help="Dataset prefix (call_logs, media_complaint)")
-    parser.add_argument("--target_bucket", required=True, help="Target S3 Bucket Name")
-    parser.add_argument("--file_type", required=True, choices=['csv', 'json'], help="Input file format")
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--execution_date", required=True)
+    parser.add_argument("--source_bucket", required=True)
+    parser.add_argument("--source_prefix", required=True)
+    parser.add_argument("--target_bucket", required=True)
+    parser.add_argument("--file_type", required=True)
     args = parser.parse_args()
     
     extract_s3_to_s3(

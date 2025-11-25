@@ -1,14 +1,18 @@
-from airflow.sdk import dag, task_group
+from airflow.sdk import dag, task_group, TriggerRule
 from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.standard.operators.latest_only import LatestOnlyOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.providers.smtp.operators.smtp import EmailOperator
 from pendulum import duration, datetime
 
 from assets import S3_RAW_DATA_READY
+from notifications import send_email_failure_alert
 
 default_args = {
     'owner': 'Oluwakayode',
     'retries': 2,
     'retry_delay': duration(minutes=1),
+    "on_failure_callback": send_email_failure_alert
 }
 
 @dag(
@@ -63,7 +67,8 @@ def ingestion_pipeline():
 
     @task_group(group_id="static_ingestion")
     def static_ingestion():
-        
+        latest_only = LatestOnlyOperator(task_id="latest_only")
+
         extract_customers = BashOperator(
             task_id="extract_customers",
             bash_command=f"""
@@ -84,14 +89,26 @@ def ingestion_pipeline():
             """
         )
 
+        latest_only >> [extract_customers, extract_agents]
+
     daily_group = daily_ingestion()
     static_group = static_ingestion()
 
     mark_done = EmptyOperator(
         task_id="mark_ingestion_complete",
+        trigger_rule=TriggerRule.NONE_FAILED,
         outlets=[S3_RAW_DATA_READY]
     )
 
-    [daily_group, static_group] >> mark_done
+    send_success_email = EmailOperator(
+        task_id="send_success_email",
+        to="ojokayode13@gmail.com",
+        subject="Success: Ingestion Pipeline Completed ({{ ds }})",
+        html_content="<h3>Pipeline Finished</h3><p>All data for {{ ds }} has been ingested successfully.</p>",
+        conn_id="smtp_conn",
+        trigger_rule=TriggerRule.NONE_FAILED
+    )
+
+    [daily_group, static_group] >> mark_done >> send_success_email
 
 ingestion_pipeline()

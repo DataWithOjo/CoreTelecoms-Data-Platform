@@ -6,6 +6,7 @@ import argparse
 import logging
 from datetime import datetime
 from typing import Dict, Any
+from sqlalchemy import create_engine, text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,7 +26,6 @@ class ExtractionError(Exception):
 def get_db_uri() -> str:
     """
     Constructs the Postgres connection URI from environment variables.
-    Validates that all required variables are present.
     """
     try:
         user = os.environ["POSTGRES_USER"]
@@ -34,12 +34,12 @@ def get_db_uri() -> str:
         port = os.environ.get("POSTGRES_PORT", "6543")
         db_name = os.environ["POSTGRES_DB"]
         
-        return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+        return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db_name}"
     except KeyError as e:
         raise ConfigError(f"Missing required environment variable: {e}")
 
 def get_s3_client() -> Any:
-    """Initialize Boto3 S3 client using standard AWS env vars."""
+    """Initialize Boto3 S3 client."""
     try:
         return boto3.client('s3')
     except Exception as e:
@@ -47,7 +47,7 @@ def get_s3_client() -> Any:
 
 def extract_and_upload(execution_date_str: str, target_bucket: str) -> None:
     """
-    Main ETL function: Extract from DB to target s3 in Parquet format.
+    Main ETL function: Extract from DB to S3.
     """
     logger.info(f"Starting Postgres extraction for date: {execution_date_str}")
     
@@ -71,11 +71,20 @@ def extract_and_upload(execution_date_str: str, target_bucket: str) -> None:
         logger.info(f"Executing Query: {query}")
         
         try:
-            df = pl.read_database_uri(query, uri)
+            engine = create_engine(uri, pool_pre_ping=True)
+            
+            with engine.connect() as connection:
+                df = pl.read_database(
+                    query=query, 
+                    connection=connection
+                )
+                
         except Exception as e:
-            if "relation" in str(e) and "does not exist" in str(e):
-                logger.error(f"MISSING TABLE: {full_table_name} does not exist in the source DB.")
-                raise ExtractionError(f"Source table missing for {execution_date_str}")
+            error_str = str(e).lower()
+            if "relation" in error_str and "does not exist" in error_str:
+                logger.warning(f"SKIPPING: Table {full_table_name} not found. Data not ready.")
+                
+                sys.exit(99) 
             else:
                 raise e
 

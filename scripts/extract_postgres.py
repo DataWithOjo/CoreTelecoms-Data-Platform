@@ -4,9 +4,10 @@ import boto3
 import polars as pl
 import argparse
 import logging
+import re
 from datetime import datetime
 from typing import Dict, Any
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,14 +25,12 @@ class ExtractionError(Exception):
     pass
 
 def get_db_uri() -> str:
-    """
-    Constructs the Postgres connection URI from environment variables.
-    """
+    """Constructs the Postgres connection URI from environment variables."""
     try:
         user = os.environ["POSTGRES_USER"]
         password = os.environ["POSTGRES_PASSWORD"]
         host = os.environ["POSTGRES_HOST"]
-        port = os.environ.get("POSTGRES_PORT", "6543")
+        port = os.environ.get("POSTGRES_PORT", "5432")
         db_name = os.environ["POSTGRES_DB"]
         
         return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db_name}"
@@ -45,9 +44,28 @@ def get_s3_client() -> Any:
     except Exception as e:
         raise ConfigError(f"Failed to initialize S3 client: {e}")
 
+def clean_column_name(col_name: str) -> str:
+    """
+    Standardizes column names to snake_case.
+    
+    Args:
+        col_name: The original column name.
+        
+    Returns:
+        str: Cleaned snake_case column name.
+    """
+    raw = str(col_name).lower()
+    
+    if raw.startswith('unnamed') or raw == 'column1':
+        return 'source_row_id'
+    
+    clean = re.sub(r'[^a-z0-9]+', '_', raw)
+    
+    return clean.strip('_')
+
 def extract_and_upload(execution_date_str: str, target_bucket: str) -> None:
     """
-    Main ETL function: Extract from DB to S3.
+    Main ETL function: Extract from DB to S3 with column sanitization.
     """
     logger.info(f"Starting Postgres extraction for date: {execution_date_str}")
     
@@ -83,10 +101,16 @@ def extract_and_upload(execution_date_str: str, target_bucket: str) -> None:
             error_str = str(e).lower()
             if "relation" in error_str and "does not exist" in error_str:
                 logger.warning(f"SKIPPING: Table {full_table_name} not found. Data not ready.")
-                
-                sys.exit(99) 
+                sys.exit(99)
             else:
                 raise e
+
+        cleaning_map = {
+            col: clean_column_name(col)
+            for col in df.columns
+        }
+        df = df.rename(cleaning_map)
+        logger.info(f"Sanitized Columns: {df.columns}")
 
         current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         df = df.with_columns(pl.lit(current_time).alias("load_time"))

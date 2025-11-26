@@ -5,6 +5,7 @@ import polars as pl
 import argparse
 import logging
 import json 
+import re
 from datetime import datetime
 from typing import Dict, Any
 
@@ -36,10 +37,6 @@ def get_s3_client(creds: Dict[str, str]) -> Any:
         raise ExtractionError(f"Failed to initialize S3 client: {e}")
 
 def construct_paths(execution_date: str, prefix: str) -> Dict[str, str]:
-    """
-    Maps Logical Prefix (from DAG) to Physical S3 Path.
-    """
-
     if execution_date == "STATIC" or prefix == "static":
         return {
             "source_key": "customers/customers_dataset.csv",
@@ -60,6 +57,30 @@ def construct_paths(execution_date: str, prefix: str) -> Dict[str, str]:
     
     raise ExtractionError(f"Unknown source prefix: {prefix}")
 
+def clean_column_name(col_name: str) -> str:
+    """
+    Robust cleaning function:
+    1. Handles 'Unnamed', 'C0', or EMPTY strings -> source_row_id
+    2. Lowercases everything
+    3. Replaces non-alphanumeric chars with underscores
+    4. Strips leading/trailing underscores
+    """
+    if col_name is None:
+        return 'source_row_id'
+        
+    raw = str(col_name).lower().strip()
+    
+    if raw == '' or raw.startswith('unnamed') or raw == 'c0' or raw == '__index_level_0__':
+        return 'source_row_id'
+        
+    clean = re.sub(r'[^a-z0-9]+', '_', raw)
+    clean = clean.strip('_')
+    
+    if not clean:
+        return 'unknown_col'
+        
+    return clean
+
 def process_file(local_path: str, file_type: str) -> pl.DataFrame:
     try:
         df = None
@@ -67,21 +88,31 @@ def process_file(local_path: str, file_type: str) -> pl.DataFrame:
             df = pl.read_csv(local_path, infer_schema_length=0)
         
         elif file_type == "json":
-            logger.info("Parsing JSON (Standard Library)...")
+            logger.info("Parsing JSON...")
             with open(local_path, 'r') as f:
                 data = json.load(f)
-            logger.info("Converting to Polars DataFrame...")
-            df = pl.DataFrame(data)
+            
+            if isinstance(data, dict) and len(data) > 0:
+                first_key = next(iter(data))
+                if isinstance(data[first_key], dict):
+                    logger.info("Detected Column-Oriented JSON with Indexes. Flattening...")
+                    row_indices = sorted(data[first_key].keys(), key=lambda x: int(x) if x.isdigit() else x)
+                    flattened_data = {}
+                    for col, values_dict in data.items():
+                        flattened_data[col] = [values_dict.get(idx) for idx in row_indices]
+                    df = pl.DataFrame(flattened_data)
+                else:
+                    df = pl.DataFrame(data)
+            else:
+                df = pl.DataFrame(data)
             
         else:
             raise ExtractionError(f"Unsupported file type: {file_type}")
 
-        new_columns = {
-            col: col.strip().lower().replace(" ", "_") 
-            for col in df.columns
-        }
+        new_columns = {col: clean_column_name(col) for col in df.columns}
         df = df.rename(new_columns)
         
+        logger.info(f"Cleaned Columns: {df.columns}")
         return df
         
     except Exception as e:

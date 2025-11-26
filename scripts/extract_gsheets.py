@@ -3,6 +3,7 @@ import sys
 import boto3
 import polars as pl
 import gspread
+import re
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import argparse
@@ -68,6 +69,25 @@ def get_sheet_data(client: gspread.Client, sheet_name: str) -> pl.DataFrame:
     except Exception as e:
         raise ExtractionError(f"Failed to read sheet '{sheet_name}': {e}")
 
+def clean_column_name(col_name: str) -> str:
+    """
+    Standardizes column names to snake_case.
+    
+    Args:
+        col_name: The original column name.
+        
+    Returns:
+        str: Cleaned snake_case column name.
+    """
+    raw = str(col_name).lower()
+    
+    if raw.startswith('unnamed') or raw == 'column1' or raw == '':
+        return 'source_row_id'
+    
+    clean = re.sub(r'[^a-z0-9]+', '_', raw)
+    
+    return clean.strip('_')
+
 def process_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     """
     Cleans column names and adds audit columns.
@@ -75,8 +95,11 @@ def process_dataframe(df: pl.DataFrame) -> pl.DataFrame:
     try:
         logger.info(f"Original Columns: {df.columns}")
         
-        new_columns = {col: col.lower().strip() for col in df.columns}
-        df = df.rename(new_columns)
+        cleaning_map = {
+            col: clean_column_name(col)
+            for col in df.columns
+        }
+        df = df.rename(cleaning_map)
         
         if "id" in df.columns:
             df = df.with_columns(pl.col("id").cast(pl.Utf8))

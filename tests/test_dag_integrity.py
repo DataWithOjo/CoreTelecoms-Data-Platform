@@ -10,10 +10,6 @@ SCRIPTS_FOLDER = os.path.join(PROJECT_ROOT, "scripts")
 
 sys.path.append(SCRIPTS_FOLDER)
 
-# ---------------------------------------------------------
-# Fixtures & Tests
-# ---------------------------------------------------------
-
 @pytest.fixture
 def dagbag(mock_airflow_variables):
     """

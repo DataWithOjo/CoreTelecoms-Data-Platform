@@ -1,13 +1,18 @@
-WITH source AS (
-    SELECT * FROM {{ source('core_telecoms', 'customers') }}
+with source as (
+    select * from {{ source('telecom_raw', 'customers') }}
+),
+
+renamed as (
+    select
+        customer_id,
+        name as customer_name,
+        gender,
+        try_to_date(date_of_birth) as date_of_birth,
+        try_to_date(signup_date) as signup_date,
+        email,
+        address,
+        _ingestion_time
+    from source
 )
-SELECT
-    customer_id,
-    TRIM(name) as customer_name,
-    UPPER(gender) as gender,
-    TRY_TO_DATE(date_of_birth) as birth_date,
-    TRY_TO_DATE(signup_date) as signup_date,
-    email,
-    address,
-    _ingestion_time as ingested_at
-FROM source
+
+select * from renamed

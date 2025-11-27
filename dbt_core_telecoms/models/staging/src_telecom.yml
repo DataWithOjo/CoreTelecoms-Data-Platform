@@ -1,7 +1,7 @@
 version: 2
 
 sources:
-  - name: core_telecoms
+  - name: telecom_raw
     description: "Raw data ingested from S3 Data Lake (Postgres, CSV, JSON sources)"
     database: CORETELECOMS_DW
     schema: RAW

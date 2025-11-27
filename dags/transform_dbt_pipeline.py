@@ -18,7 +18,7 @@ profile_config = ProfileConfig(
     profile_name="core_telecoms",
     target_name="dev",
     profile_mapping=SnowflakeUserPasswordProfileMapping(
-        conn_id="snowflake_default", 
+        conn_id="snowflake_conn", 
         profile_args={"schema": "ANALYTICS"},
     )
 )

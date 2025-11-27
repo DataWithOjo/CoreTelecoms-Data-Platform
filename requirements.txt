@@ -21,3 +21,5 @@ oauth2client
 pytest
 flake8
 moto
+dbt-snowflake
+astronomer-cosmos

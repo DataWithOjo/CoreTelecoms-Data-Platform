@@ -14,7 +14,7 @@ default_args = {
     "retries": 2,
     "retry_delay": duration(minutes=1),
     "conn_id": "snowflake_conn",
-    'snowflake_conn_id': 'snowflake_conn',
+    "snowflake_conn_id": "snowflake_conn",
     "on_failure_callback": send_email_failure_alert
 }
 
@@ -39,7 +39,6 @@ def load_snowflake_pipeline():
     @task_group(group_id="load_static_tables")
     def load_static_tables():
         
-        # --- CUSTOMERS ---
         delete_customers = SQLExecuteQueryOperator(
             task_id='delete_customers',
             sql=f"DELETE FROM {SNOWFLAKE_DB}.{SNOWFLAKE_SCHEMA}.CUSTOMERS",
@@ -66,7 +65,6 @@ def load_snowflake_pipeline():
             """
         )
 
-        # --- AGENTS ---
         delete_agents = SQLExecuteQueryOperator(
             task_id='delete_agents',
             sql=f"DELETE FROM {SNOWFLAKE_DB}.{SNOWFLAKE_SCHEMA}.AGENTS",
@@ -99,10 +97,6 @@ def load_snowflake_pipeline():
     @task_group(group_id="load_daily_tables")
     def load_daily_tables():
         
-        # Updated:
-        # 1. Added FORCE=TRUE so Snowflake doesn't ignore the file you are testing.
-        # 2. Added COALESCE to handle 'source_row_id', 'SOURCE_ROW_ID', or 'Source_Row_Id'.
-        # 3. Added explicit ::VARCHAR casting.
         load_call_logs = SQLExecuteQueryOperator(
             task_id='load_call_logs',
             split_statements=False,
@@ -142,7 +136,6 @@ def load_snowflake_pipeline():
             """
         )
 
-        # --- WEB COMPLAINTS ---
         load_web_complaints = SQLExecuteQueryOperator(
             task_id='load_web_complaints',
             split_statements=False,
@@ -165,7 +158,6 @@ def load_snowflake_pipeline():
             """
         )
 
-        # --- SOCIAL MEDIA ---
         load_social_media = SQLExecuteQueryOperator(
             task_id='load_social_media',
             split_statements=False,

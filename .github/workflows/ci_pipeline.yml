@@ -35,7 +35,17 @@ jobs:
 
       - name: Lint SQL Code (dbt Models)
         run: |
-          sqlfluff lint dbt_core_telecoms/models --dialect snowflake
+          DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
+          
+          echo "Found dbt project at: $DBT_DIR"
+          
+          if [ -z "$DBT_DIR" ]; then
+            echo "Error: dbt_project.yml not found!"
+            exit 1
+          fi
+          
+          # Run sqlfluff on the 'models' subdirectory of that found folder
+          sqlfluff lint "$DBT_DIR/models" --dialect snowflake
 
   unit-tests:
     name: Unit Testing

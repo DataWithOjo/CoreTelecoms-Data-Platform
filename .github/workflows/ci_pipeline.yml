@@ -37,11 +37,12 @@ jobs:
         run: |
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
-          
-          # Remove any runner profile & create dummy
+
+          # Force dbt to ignore any existing profiles
           rm -rf ~/.dbt
           mkdir -p ~/.dbt
 
+          # Dummy profile
           cat <<EOF > ~/.dbt/profiles.yml
           core_telecoms:
             target: none
@@ -58,19 +59,19 @@ jobs:
                 threads: 1
                 client_session_keep_alive: false
           EOF
-          
+
           # Install dbt dependencies
           dbt deps --project-dir "$DBT_DIR" --profiles-dir ~/.dbt
 
-          # Compile WITHOUT connecting to Snowflake or loading tests
+          # Compile ONLY MODELS (NO TESTS, NO SOURCES, NO HOOKS, NO DB CALLS)
           dbt compile \
             --project-dir "$DBT_DIR" \
             --profiles-dir ~/.dbt \
             --target none \
             --no-write-json \
-            --vars '{disable_tests: true}'
+            --select models
 
-          # Lint SQL
+          # Lint model SQL
           sqlfluff lint "$DBT_DIR/models" --dialect snowflake
 
   unit-tests:

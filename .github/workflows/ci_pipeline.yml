@@ -38,41 +38,11 @@ jobs:
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
 
-          # Force dbt to ignore any existing profiles
-          rm -rf ~/.dbt
-          mkdir -p ~/.dbt
+          # install dbt dependencies (macros only)
+          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR"
 
-          # Dummy profile
-          cat <<EOF > ~/.dbt/profiles.yml
-          core_telecoms:
-            target: none
-            outputs:
-              none:
-                type: snowflake
-                account: dummy
-                user: dummy
-                password: dummy
-                role: dummy
-                warehouse: dummy
-                database: dummy
-                schema: dummy
-                threads: 1
-                client_session_keep_alive: false
-          EOF
-
-          # Install dbt dependencies
-          dbt deps --project-dir "$DBT_DIR" --profiles-dir ~/.dbt
-
-          # Compile ONLY MODELS (NO TESTS, NO SOURCES, NO HOOKS, NO DB CALLS)
-          dbt compile \
-            --project-dir "$DBT_DIR" \
-            --profiles-dir ~/.dbt \
-            --target none \
-            --no-write-json \
-            --select models
-
-          # Lint model SQL
-          sqlfluff lint "$DBT_DIR/models" --dialect snowflake
+          # Lint using sqlfluff dbt templater
+          sqlfluff lint "$DBT_DIR/models" --config .sqlfluff
 
   unit-tests:
     name: Unit Testing

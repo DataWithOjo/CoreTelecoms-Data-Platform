@@ -34,16 +34,21 @@ jobs:
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Lint SQL Code (dbt Models)
+        env:
+          DBT_PROFILES_DIR: ~/.dbt
+          DBT_PARTIAL_PARSE: "False"
+          DBT_ALLOW_TEST_CONNECTIONS: "False"
+          DBT_FULL_REFRESH: "False"
+          DBT_DEFER: "True"
         run: |
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
-          
-          # Remove any accidental ~/.dbt folder inside GitHub Runner
-          rm -rf ~/.dbt
-          mkdir -p ~/.dbt
-          echo "profiles-yaml path is $(realpath ~/.dbt)"
 
-          # Create a valid dummy profile INSIDE ~/.dbt/
+          # recreate ~/.dbt
+          rm -rf ~/.dbt
+          mkdir ~/.dbt
+
+          # dummy profile
           cat <<EOF > ~/.dbt/profiles.yml
           core_telecoms:
             target: none
@@ -60,16 +65,14 @@ jobs:
                 threads: 1
                 client_session_keep_alive: false
           EOF
-          
-          cat ~/.dbt/profiles.yml
 
-          # Install dbt dependencies
+          # install packages
           dbt deps --project-dir $DBT_DIR --profiles-dir ~/.dbt
 
-          # Compile using dummy target
-          dbt compile --project-dir $DBT_DIR --profiles-dir ~/.dbt --target none
+          # compile WITHOUT evaluating tests/sources
+          dbt compile --project-dir $DBT_DIR --profiles-dir ~/.dbt --target none --no-write-json
 
-          # Lint SQL
+          # finally run sqlfluff
           sqlfluff lint $DBT_DIR/models --dialect snowflake
 
   unit-tests:

@@ -35,35 +35,39 @@ jobs:
 
       - name: Lint SQL Code (dbt Models)
         run: |
+
+          # Detect dbt project directory
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
-          echo "Found dbt project at: $DBT_DIR"
-          
-          if [ -z "$DBT_DIR" ]; then
-            echo "Error: dbt_project.yml not found!"
-            exit 1
-          fi
+          echo "Detected dbt project at: $DBT_DIR"
+          ls -la $DBT_DIR
 
-          # Create a config file that mocks dbt_utils
-          cat <<EOF > .sqlfluff
-          [sqlfluff]
-          dialect = snowflake
-          templater = jinja
-          runaway_limit = 10
-          max_line_length = 120
-          # Ignore simple spacing/layout errors 
-          exclude_rules = ST06, LT05
-
-          [sqlfluff:templater:jinja]
-          apply_dbt_builtins = True
-          
-          # MOCK dbt_utils functions so linter passes without DB
-          [sqlfluff:templater:jinja:context]
-          dbt_utils = {
-              "generate_surrogate_key": lambda x: "surrogate_key_placeholder"
-              }
+          # Create dummy DBT profiles.yml
+          cat <<EOF > $DBT_DIR/profiles.yml
+          core_telecoms:
+            target: dev
+            outputs:
+              dev:
+                type: snowflake
+                account: dummy
+                user: dummy
+                password: dummy
+                role: dummy
+                warehouse: dummy
+                database: dummy
+                schema: dummy
+                threads: 1
           EOF
 
-          sqlfluff lint "$DBT_DIR/models" --config .sqlfluff
+          # Install dbt packages
+          cd $DBT_DIR
+          dbt deps --profiles-dir .
+          cd -
+
+          echo "Installed dbt packages:"
+          ls -la $DBT_DIR/dbt_packages
+
+          # Lint with sqlfluff 
+          sqlfluff lint $DBT_DIR/models --dialect snowflake
 
   unit-tests:
     name: Unit Testing
@@ -89,5 +93,4 @@ jobs:
           AIRFLOW_HOME: ${{ github.workspace }}
         run: |
           export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}"
-          
           pytest tests/test_load_snowflake_pipeline.py

@@ -34,21 +34,14 @@ jobs:
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Lint SQL Code (dbt Models)
-        env:
-          DBT_PROFILES_DIR: ~/.dbt
-          DBT_PARTIAL_PARSE: "False"
-          DBT_ALLOW_TEST_CONNECTIONS: "False"
-          DBT_FULL_REFRESH: "False"
-          DBT_DEFER: "True"
         run: |
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
-
-          # recreate ~/.dbt
+          
+          # Remove any runner profile & create dummy
           rm -rf ~/.dbt
-          mkdir ~/.dbt
+          mkdir -p ~/.dbt
 
-          # dummy profile
           cat <<EOF > ~/.dbt/profiles.yml
           core_telecoms:
             target: none
@@ -65,15 +58,20 @@ jobs:
                 threads: 1
                 client_session_keep_alive: false
           EOF
+          
+          # Install dbt dependencies
+          dbt deps --project-dir "$DBT_DIR" --profiles-dir ~/.dbt
 
-          # install packages
-          dbt deps --project-dir $DBT_DIR --profiles-dir ~/.dbt
+          # Compile WITHOUT connecting to Snowflake or loading tests
+          dbt compile \
+            --project-dir "$DBT_DIR" \
+            --profiles-dir ~/.dbt \
+            --target none \
+            --no-write-json \
+            --vars '{disable_tests: true}'
 
-          # compile WITHOUT evaluating tests/sources
-          dbt compile --project-dir $DBT_DIR --profiles-dir ~/.dbt --target none --no-write-json
-
-          # finally run sqlfluff
-          sqlfluff lint $DBT_DIR/models --dialect snowflake
+          # Lint SQL
+          sqlfluff lint "$DBT_DIR/models" --dialect snowflake
 
   unit-tests:
     name: Unit Testing

@@ -55,13 +55,12 @@ jobs:
                 database: dummy
                 schema: dummy
                 threads: 1
-                client_session_keep_alive: false
           EOF
 
-          # Install dbt packages
+          # Install dbt deps
           dbt deps --project-dir $DBT_DIR --profiles-dir $DBT_DIR
 
-          # Lint SQL using dbt templater
+          # Lint SQL files using dbt templater
           sqlfluff lint $DBT_DIR/models --dialect snowflake
 
   unit-tests:

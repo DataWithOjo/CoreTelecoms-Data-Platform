@@ -34,15 +34,17 @@ jobs:
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Lint SQL Code (dbt Models)
-        env:
-          DBT_PROFILES_DIR: ${{ github.workspace }}/dbt_core_telecoms
         run: |
-          DBT_DIR=$(cd $(dirname $(find . -name dbt_project.yml -type f | head -n 1)) && pwd)
+          DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
-          ls -la "$DBT_DIR"
+          
+          # Remove any accidental ~/.dbt folder inside GitHub Runner
+          rm -rf ~/.dbt
+          mkdir -p ~/.dbt
+          echo "profiles-yaml path is $(realpath ~/.dbt)"
 
-          # Create dummy profiles.yml with target none
-          cat <<'EOF' > "$DBT_DIR/profiles.yml"
+          # Create a valid dummy profile INSIDE ~/.dbt/
+          cat <<EOF > ~/.dbt/profiles.yml
           core_telecoms:
             target: none
             outputs:
@@ -58,33 +60,17 @@ jobs:
                 threads: 1
                 client_session_keep_alive: false
           EOF
+          
+          cat ~/.dbt/profiles.yml
 
-          echo "=== dbt_project.yml ==="
-          sed -n '1,200p' "$DBT_DIR/dbt_project.yml"
-          echo "=== profiles.yml ==="
-          sed -n '1,200p' "$DBT_DIR/profiles.yml"
+          # Install dbt dependencies
+          dbt deps --project-dir $DBT_DIR --profiles-dir ~/.dbt
 
-          # Install packages from packages.yml
-          cd "$DBT_DIR"
-          dbt deps --profiles-dir .
-          cd -
+          # Compile using dummy target
+          dbt compile --project-dir $DBT_DIR --profiles-dir ~/.dbt --target none
 
-          # Confirm dbt picks up the right profile file
-          export DBT_PROFILES_DIR="$DBT_DIR"
-          dbt debug --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR" || true
-
-          # Try a compile with target none and verbose logging
-          dbt compile --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR" --target none -v || true
-
-          # If compile succeeded (exit 0), run sqlfluff. Otherwise dump a message.
-          if dbt compile --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR" --target none >/dev/null 2>&1; then
-            echo "dbt compile succeeded with target none — running sqlfluff"
-            sqlfluff lint "$DBT_DIR/models" --dialect snowflake
-          else
-            echo "dbt compile failed (or attempted DB connection). Check above output for details."
-            exit 1
-          fi
-
+          # Lint SQL
+          sqlfluff lint $DBT_DIR/models --dialect snowflake
 
   unit-tests:
     name: Unit Testing

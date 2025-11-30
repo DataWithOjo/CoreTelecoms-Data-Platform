@@ -11,3 +11,9 @@ USER airflow
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+
+COPY --chown=airflow:root dags /opt/airflow/dags
+
+COPY --chown=airflow:root scripts /opt/airflow/scripts
+
+COPY --chown=airflow:root dbt_core_telecoms /opt/airflow/dbt_core_telecoms

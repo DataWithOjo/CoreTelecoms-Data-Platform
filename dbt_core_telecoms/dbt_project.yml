@@ -16,11 +16,17 @@ clean-targets: ["target", "dbt_packages"]
 
 models:
   core_telecoms:
-    # Silver Layer (Views)
+
     staging:
       +materialized: view
       +schema: STAGING
-    # Gold Layer (Tables)
+      +transient: true
+
     marts:
       +materialized: table
       +schema: ANALYTICS
+      +copy_grants: true
+
+      fct_unified_complaints:
+        +materialized: incremental
+        +cluster_by: ["TO_DATE(started_at)"]   

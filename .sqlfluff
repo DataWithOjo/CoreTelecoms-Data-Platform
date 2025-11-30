@@ -1,8 +1,8 @@
 [sqlfluff]
 dialect = snowflake
 templater = dbt
-exclude_rules = LT05, ST06
 
 [sqlfluff:templater:dbt]
 project_dir = dbt_core_telecoms
-profiles_dir = ~/.dbt
+profiles_dir = dbt_core_telecoms        
+load_macros_from_packages = true

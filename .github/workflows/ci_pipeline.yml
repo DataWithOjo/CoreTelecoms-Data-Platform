@@ -35,17 +35,11 @@ jobs:
 
       - name: Lint SQL Code (dbt Models)
         run: |
-          # Detect dbt project directory
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
-          echo "Detected dbt project at: $DBT_DIR"
-
-          # Convert DBT_DIR to absolute path
           ABS_DBT_DIR=$(cd $DBT_DIR && pwd)
-          export DBT_PROFILES_DIR=$ABS_DBT_DIR
+          echo "Detected dbt project at: $ABS_DBT_DIR"
 
-          echo "DBT_PROFILES_DIR resolved to: $DBT_PROFILES_DIR"
-
-          # Create dummy dbt profile inside project folder
+          # Create dummy dbt profile
           cat <<EOF > $ABS_DBT_DIR/profiles.yml
           core_telecoms:
             target: default
@@ -60,16 +54,27 @@ jobs:
                 database: dummy
                 schema: dummy
                 threads: 1
-                client_session_keep_alive: false
           EOF
 
-          echo "profiles.yml created at: $ABS_DBT_DIR/profiles.yml"
+          # Create .sqlfluff config so dbt templater points to the right profile
+          cat <<EOF > .sqlfluff
+          [sqlfluff]
+          dialect = snowflake
+          templater = dbt
 
-          # Install dbt packages
+          [sqlfluff:templater:dbt]
+          project_dir = dbt_core_telecoms
+          profiles_dir = dbt_core_telecoms
+          load_macros_from_packages = true
+          EOF
+
+          echo "sqlfluff config written"
+
+          # Install dbt packages (macros)
           dbt deps --project-dir "$ABS_DBT_DIR" --profiles-dir "$ABS_DBT_DIR"
 
-          # Lint using dbt-aware templater
-          sqlfluff lint "$ABS_DBT_DIR/models" --dialect snowflake
+          # Lint SQL
+          sqlfluff lint "$ABS_DBT_DIR/models"
 
   unit-tests:
     name: Unit Testing

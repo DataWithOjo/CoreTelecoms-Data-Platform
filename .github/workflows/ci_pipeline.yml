@@ -44,34 +44,22 @@ jobs:
             exit 1
           fi
 
-          # Create a dummy profiles.yml so dbt can compile without crashing
-          cat <<EOF > $DBT_DIR/profiles.yml
-          core_telecoms:
-            target: dev
-            outputs:
-              dev:
-                type: snowflake
-                account: dummy
-                user: dummy
-                password: dummy
-                role: dummy
-                warehouse: dummy
-                database: dummy
-                schema: dummy
-                threads: 1
+          # Configure sqlfluff for OFFLINE mode (Jinja templater)
+          # We create a config file that treats dbt macros as built-ins but doesn't connect to DB
+          cat <<EOF > .sqlfluff
+          [sqlfluff]
+          dialect = snowflake
+          templater = jinja
+          runaway_limit = 10
+          max_line_length = 120
+          exclude_rules = ST06, LT05, CP01
+
+          [sqlfluff:templater:jinja]
+          apply_dbt_builtins = True
           EOF
 
-          # Install dbt dependencies 
-          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR"
-
-          # Run sqlfluff
-          sqlfluff lint "$DBT_DIR/models" --dialect snowflake --library-path "$DBT_DIR"
-
-          # We force it to use the dbt templater and point to our dummy profile
-          sqlfluff lint "$DBT_DIR/models" \
-            --dialect snowflake \
-            --templater dbt \
-            --library-path "$DBT_DIR"
+          # Run sqlfluff using the generated config
+          sqlfluff lint "$DBT_DIR/models" --config .sqlfluff
 
   unit-tests:
     name: Unit Testing

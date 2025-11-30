@@ -34,21 +34,19 @@ jobs:
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Lint SQL Code (dbt Models)
-        env:
-          DBT_PROFILES_DIR: ~/.dbt
         run: |
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
 
-          # Recreate dummy profile
-          rm -rf ~/.dbt
-          mkdir -p ~/.dbt
+          # Configure dbt to use the disabled profile
+          export DBT_PROFILES_DIR=$DBT_DIR
 
-          cat <<EOF > ~/.dbt/profiles.yml
+          # Write profiles.yml into the dbt project folder
+          cat <<EOF > $DBT_DIR/profiles.yml
           core_telecoms:
-            target: none
+            target: disabled
             outputs:
-              none:
+              disabled:
                 type: snowflake
                 account: dummy
                 user: dummy
@@ -58,13 +56,14 @@ jobs:
                 database: dummy
                 schema: dummy
                 threads: 1
+                client_session_keep_alive: false
           EOF
 
           # Install dbt packages (macros only)
-          dbt deps --project-dir "$DBT_DIR" --profiles-dir ~/.dbt
+          dbt deps --project-dir $DBT_DIR --profiles-dir $DBT_DIR
 
           # Lint SQL with dbt templater
-          sqlfluff lint "$DBT_DIR/models" --dialect snowflake --config .sqlfluff
+          sqlfluff lint "$DBT_DIR/models" --dialect snowflake
 
   unit-tests:
     name: Unit Testing

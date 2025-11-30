@@ -31,13 +31,11 @@ jobs:
 
       - name: Lint Python Code (DAGs & Scripts)
         run: |
-          # Check DAGs and Scripts folders at the root
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Lint SQL Code (dbt Models)
         run: |
-          # Lint dbt models inside dbt_project/models
-          sqlfluff lint dbt_project/models --dialect snowflake
+          sqlfluff lint dbt_core_telecoms/models --dialect snowflake
 
   unit-tests:
     name: Unit Testing
@@ -62,8 +60,6 @@ jobs:
         env:
           AIRFLOW_HOME: ${{ github.workspace }}
         run: |
-          # Add project root to PYTHONPATH so tests can import from 'dags' or 'scripts'
           export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}"
           
-          # Run tests located in the root 'tests/' folder
           pytest tests/test_load_snowflake_pipeline.py

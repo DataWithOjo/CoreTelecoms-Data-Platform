@@ -61,6 +61,9 @@ jobs:
                 threads: 1
           EOF
 
+          # Install dbt dependencies 
+          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR"
+
           # Run sqlfluff
           sqlfluff lint "$DBT_DIR/models" --dialect snowflake --library-path "$DBT_DIR"
 

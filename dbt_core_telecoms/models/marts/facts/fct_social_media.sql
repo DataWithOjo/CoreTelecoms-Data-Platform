@@ -1,8 +1,8 @@
-with social as (
-    select * from {{ ref('stg_social_media') }}
+WITH social AS (
+    SELECT * FROM {{ ref('stg_social_media') }}
 )
 
-select
+SELECT
     complaint_id,
     customer_id,
     agent_id,
@@ -12,5 +12,5 @@ select
     resolution_status,
     request_date,
     resolution_date,
-    datediff('hour', request_date, resolution_date) as time_to_resolve_hours,
-from social
+    DATEDIFF('hour', request_date, resolution_date) AS time_to_resolve_hours
+FROM social;

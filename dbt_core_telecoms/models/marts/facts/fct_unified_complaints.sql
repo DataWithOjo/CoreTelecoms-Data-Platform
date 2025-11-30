@@ -5,43 +5,43 @@
 
 WITH calls AS (
     SELECT 
-        call_id as source_complaint_id,
+        call_id AS source_complaint_id,
         customer_id,
         agent_id,
-        'Call Center' as channel,
+        'Call Center' AS channel,
         complaint_category,
-        resolution_status as status,
-        call_start_time as started_at, 
-        call_end_time as ended_at,
-        _ingestion_time as ingested_at
+        resolution_status AS status,
+        call_start_time AS started_at, 
+        call_end_time AS ended_at,
+        _ingestion_time AS ingested_at
     FROM {{ ref('stg_call_logs') }}
 ),
 
 web AS (
     SELECT 
-        request_id as source_complaint_id,
+        request_id AS source_complaint_id,
         customer_id,
         agent_id,
-        'Web Form' as channel,
+        'Web Form' AS channel,
         complaint_category,
-        resolution_status as status,
-        request_date as started_at,   
-        resolution_date as ended_at,
-        _ingestion_time as ingested_at
+        resolution_status AS status,
+        request_date AS started_at,   
+        resolution_date AS ended_at,
+        _ingestion_time AS ingested_at
     FROM {{ ref('stg_web_complaints') }}
 ),
 
 social AS (
     SELECT 
-        complaint_id as source_complaint_id,
+        complaint_id AS source_complaint_id,
         customer_id,
         agent_id,
-        'Social Media' as channel,
+        'Social Media' AS channel,
         complaint_category,
-        resolution_status as status,
-        request_date as started_at,    
-        resolution_date as ended_at,
-        _ingestion_time as ingested_at
+        resolution_status AS status,
+        request_date AS started_at,    
+        resolution_date AS ended_at,
+        _ingestion_time AS ingested_at
     FROM {{ ref('stg_social_media') }}
 ),
 
@@ -54,7 +54,7 @@ unioned AS (
 )
 
 SELECT
-    {{ dbt_utils.generate_surrogate_key(['source_complaint_id', 'channel']) }} as complaint_pk,
+    {{ dbt_utils.generate_surrogate_key(['source_complaint_id', 'channel']) }} AS complaint_pk,
     *
 FROM unioned
 

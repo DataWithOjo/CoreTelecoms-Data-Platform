@@ -1,8 +1,8 @@
-with calls as (
-    select * from {{ ref('stg_call_logs') }}
+WITH calls AS (
+    SELECT * FROM {{ ref('stg_call_logs') }}
 )
 
-select
+SELECT
     call_id,
     customer_id,
     agent_id,
@@ -11,5 +11,5 @@ select
     resolution_status,
     call_start_time,
     call_end_time,
-    datediff('second', call_start_time, call_end_time) as call_duration_seconds,
-from calls
+    DATEDIFF('second', call_start_time, call_end_time) AS call_duration_seconds
+FROM calls;

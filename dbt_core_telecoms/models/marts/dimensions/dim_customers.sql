@@ -1,8 +1,8 @@
-with staging as (
-    select * from {{ ref('stg_customers') }}
+WITH staging AS (
+    SELECT * FROM {{ ref('stg_customers') }}
 )
 
-select
+SELECT
     customer_id,
     customer_name,
     gender,
@@ -10,5 +10,5 @@ select
     signup_date,
     email,
     address,
-    datediff('year', date_of_birth, current_date()) as customer_age
-from staging
+    DATEDIFF('year', date_of_birth, CURRENT_DATE()) AS customer_age
+FROM staging;

@@ -1,10 +1,10 @@
-with staging as (
-    select * from {{ ref('stg_agents') }}
+WITH staging AS (
+    SELECT * FROM {{ ref('stg_agents') }}
 )
 
-select
+SELECT
     agent_id,
     agent_name,
     experience,
     state
-from staging
+FROM staging;

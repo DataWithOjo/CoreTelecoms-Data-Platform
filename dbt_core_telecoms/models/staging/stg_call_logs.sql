@@ -1,20 +1,20 @@
-with source as (
-    select * from {{ source('telecom_raw', 'call_center_logs') }}
+WITH source AS (
+    SELECT * FROM {{ source('telecom_raw', 'call_center_logs') }}
 ),
 
-renamed as (
-    select
+renamed AS (
+    SELECT
         call_id,
         source_row_id,
         customer_id,
         agent_id,
-        complaint_catego_ry as complaint_category,
-        resolutionstatus as resolution_status,
-        try_to_timestamp(call_start_time) as call_start_time,
-        try_to_timestamp(call_end_time) as call_end_time,
-        try_to_date(calllogsgenerationdate) as call_logs_generation_date,
+        complaint_catego_ry AS complaint_category,
+        resolutionstatus AS resolution_status,
+        TRY_TO_TIMESTAMP(call_start_time) AS call_start_time,
+        TRY_TO_TIMESTAMP(call_end_time) AS call_end_time,
+        TRY_TO_DATE(calllogsgenerationdate) AS call_logs_generation_date,
         _ingestion_time
-    from source
+    FROM source
 )
 
-select * from renamed
+SELECT * FROM renamed;

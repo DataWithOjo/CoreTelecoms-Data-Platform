@@ -1,15 +1,15 @@
-with source as (
-    select * from {{ source('telecom_raw', 'agents') }}
+WITH source AS (
+    SELECT * FROM {{ source('telecom_raw', 'agents') }}
 ),
 
-renamed as (
-    select
-        id as agent_id,
-        name as agent_name,
+renamed AS (
+    SELECT
+        id AS agent_id,
+        name AS agent_name,
         experience,
         state,
         _ingestion_time
-    from source
+    FROM source
 )
 
-select * from renamed
+SELECT * FROM renamed

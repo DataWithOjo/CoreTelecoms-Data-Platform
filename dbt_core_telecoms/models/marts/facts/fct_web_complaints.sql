@@ -1,8 +1,8 @@
-with web as (
-    select * from {{ ref('stg_web_complaints') }}
+WITH web AS (
+    SELECT * FROM {{ ref('stg_web_complaints') }}
 )
 
-select
+SELECT
     request_id,
     customer_id,
     agent_id,
@@ -11,5 +11,5 @@ select
     resolution_status,
     request_date,
     resolution_date,
-    datediff('hour', request_date, resolution_date) as time_to_resolve_hours,
-from web
+    DATEDIFF('hour', request_date, resolution_date) AS time_to_resolve_hours
+FROM web;

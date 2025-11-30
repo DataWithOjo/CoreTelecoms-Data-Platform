@@ -27,7 +27,10 @@ jobs:
           cache: 'pip'
 
       - name: Install Linting Tools
-        run: pip install flake8 sqlfluff
+        run: pip install flake8 sqlfluff sqlfluff-templater-dbt dbt-snowflake
+
+      - name: Debug - List Files
+        run: ls -R
 
       - name: Lint Python Code (DAGs & Scripts)
         run: |
@@ -35,6 +38,7 @@ jobs:
 
       - name: Lint SQL Code (dbt Models)
         run: |
+          # Dynamically find the folder containing dbt_project.yml
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           
           echo "Found dbt project at: $DBT_DIR"

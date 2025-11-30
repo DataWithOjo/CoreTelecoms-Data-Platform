@@ -39,11 +39,14 @@ jobs:
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
 
-          # Tell dbt where the profiles.yml is
-          export DBT_PROFILES_DIR=$DBT_DIR
+          # Convert DBT_DIR to absolute path
+          ABS_DBT_DIR=$(cd $DBT_DIR && pwd)
+          export DBT_PROFILES_DIR=$ABS_DBT_DIR
 
-          # Create dummy dbt profile
-          cat <<EOF > $DBT_DIR/profiles.yml
+          echo "DBT_PROFILES_DIR resolved to: $DBT_PROFILES_DIR"
+
+          # Create dummy dbt profile inside project folder
+          cat <<EOF > $ABS_DBT_DIR/profiles.yml
           core_telecoms:
             target: default
             outputs:
@@ -60,14 +63,13 @@ jobs:
                 client_session_keep_alive: false
           EOF
 
-          echo "profiles.yml created at: $DBT_DIR/profiles.yml"
-          echo "DBT_PROFILES_DIR=$DBT_PROFILES_DIR"
+          echo "profiles.yml created at: $ABS_DBT_DIR/profiles.yml"
 
           # Install dbt packages
-          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR"
+          dbt deps --project-dir "$ABS_DBT_DIR" --profiles-dir "$ABS_DBT_DIR"
 
-          # Run SQLFluff with dbt templater
-          sqlfluff lint "$DBT_DIR/models" --dialect snowflake
+          # Lint using dbt-aware templater
+          sqlfluff lint "$ABS_DBT_DIR/models" --dialect snowflake
 
   unit-tests:
     name: Unit Testing

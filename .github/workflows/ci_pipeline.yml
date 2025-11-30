@@ -37,11 +37,12 @@ jobs:
         env:
           DBT_PROFILES_DIR: ${{ github.workspace }}/dbt_core_telecoms
         run: |
-          DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
+          DBT_DIR=$(cd $(dirname $(find . -name dbt_project.yml -type f | head -n 1)) && pwd)
           echo "Detected dbt project at: $DBT_DIR"
+          ls -la "$DBT_DIR"
 
-          # Create dummy profiles.yml
-          cat <<EOF > $DBT_DIR/profiles.yml
+          # Create dummy profiles.yml with target none
+          cat <<'EOF' > "$DBT_DIR/profiles.yml"
           core_telecoms:
             target: none
             outputs:
@@ -55,13 +56,35 @@ jobs:
                 database: dummy
                 schema: dummy
                 threads: 1
+                client_session_keep_alive: false
           EOF
 
-          # Install dbt deps
-          dbt deps --project-dir $DBT_DIR --profiles-dir $DBT_DIR
+          echo "=== dbt_project.yml ==="
+          sed -n '1,200p' "$DBT_DIR/dbt_project.yml"
+          echo "=== profiles.yml ==="
+          sed -n '1,200p' "$DBT_DIR/profiles.yml"
 
-          # Lint SQL files using dbt templater
-          sqlfluff lint $DBT_DIR/models --dialect snowflake
+          # Install packages from packages.yml
+          cd "$DBT_DIR"
+          dbt deps --profiles-dir .
+          cd -
+
+          # Confirm dbt picks up the right profile file
+          export DBT_PROFILES_DIR="$DBT_DIR"
+          dbt debug --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR" || true
+
+          # Try a compile with target none and verbose logging
+          dbt compile --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR" --target none -v || true
+
+          # If compile succeeded (exit 0), run sqlfluff. Otherwise dump a message.
+          if dbt compile --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR" --target none >/dev/null 2>&1; then
+            echo "dbt compile succeeded with target none — running sqlfluff"
+            sqlfluff lint "$DBT_DIR/models" --dialect snowflake
+          else
+            echo "dbt compile failed (or attempted DB connection). Check above output for details."
+            exit 1
+          fi
+
 
   unit-tests:
     name: Unit Testing

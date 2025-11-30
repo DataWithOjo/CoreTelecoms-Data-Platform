@@ -12,6 +12,7 @@ exclude_rules = ST06, LT05
 [sqlfluff:templater:dbt]
 project_dir = ./dbt_core_telecoms
 profiles_dir = ./dbt_core_telecoms
+packages_install_path = ./dbt_core_telecoms
 # This tells sqlfluff to ignore dependency errors during CI
 apply_dbt_builtins = true
 packages_install_path = ./dbt_core_telecoms

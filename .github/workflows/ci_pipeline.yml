@@ -35,7 +35,6 @@ jobs:
 
       - name: Lint SQL Code (dbt Models)
         run: |
-          # Dynamically find the dbt project folder
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Found dbt project at: $DBT_DIR"
           
@@ -44,21 +43,26 @@ jobs:
             exit 1
           fi
 
-          # Configure sqlfluff for OFFLINE mode (Jinja templater)
-          # We create a config file that treats dbt macros as built-ins but doesn't connect to DB
+          # Create a config file that mocks dbt_utils
           cat <<EOF > .sqlfluff
           [sqlfluff]
           dialect = snowflake
           templater = jinja
           runaway_limit = 10
           max_line_length = 120
-          exclude_rules = ST06, LT05, CP01
+          # Ignore simple spacing/layout errors 
+          exclude_rules = ST06, LT05
 
           [sqlfluff:templater:jinja]
           apply_dbt_builtins = True
+          
+          # MOCK dbt_utils functions so linter passes without DB
+          [sqlfluff:templater:jinja:context]
+          dbt_utils = {
+              "generate_surrogate_key": lambda x: "surrogate_key_placeholder"
+              }
           EOF
 
-          # Run sqlfluff using the generated config
           sqlfluff lint "$DBT_DIR/models" --config .sqlfluff
 
   unit-tests:

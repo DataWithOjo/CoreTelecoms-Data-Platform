@@ -34,14 +34,13 @@ jobs:
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Lint SQL Code (dbt Models)
+        env:
+          DBT_PROFILES_DIR: ${{ github.workspace }}/dbt_core_telecoms
         run: |
-
-          # Detect dbt project directory
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
-          ls -la $DBT_DIR
 
-          # Create dummy DBT profiles.yml
+          # Create dummy profiles.yml
           cat <<EOF > $DBT_DIR/profiles.yml
           core_telecoms:
             target: none
@@ -56,17 +55,13 @@ jobs:
                 database: dummy
                 schema: dummy
                 threads: 1
+                client_session_keep_alive: false
           EOF
 
           # Install dbt packages
-          cd $DBT_DIR
-          dbt deps --profiles-dir .
-          cd -
+          dbt deps --project-dir $DBT_DIR --profiles-dir $DBT_DIR
 
-          echo "Installed dbt packages:"
-          ls -la $DBT_DIR/dbt_packages
-
-          # Lint with sqlfluff 
+          # Lint SQL using dbt templater
           sqlfluff lint $DBT_DIR/models --dialect snowflake
 
   unit-tests:

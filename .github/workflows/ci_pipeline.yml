@@ -35,13 +35,14 @@ jobs:
 
       - name: Lint SQL Code (dbt Models)
         run: |
+          # Detect dbt project directory
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
 
-          # Configure dbt to use the disabled profile
+          # Tell dbt to look inside the repo for profiles.yml
           export DBT_PROFILES_DIR=$DBT_DIR
 
-          # Write profiles.yml into the dbt project folder
+          # Create profiles.yml (disabled mode = no Snowflake connection)
           cat <<EOF > $DBT_DIR/profiles.yml
           core_telecoms:
             target: disabled
@@ -59,11 +60,11 @@ jobs:
                 client_session_keep_alive: false
           EOF
 
-          # Install dbt packages (macros only)
+          # Install dbt-utils (macros only, no connection needed)
           dbt deps --project-dir $DBT_DIR --profiles-dir $DBT_DIR
 
-          # Lint SQL with dbt templater
-          sqlfluff lint "$DBT_DIR/models" --dialect snowflake
+          # Lint SQL using dbt templater without touching Snowflake
+          sqlfluff lint "$DBT_DIR/models" --dialect snowflake --config $DBT_DIR/.sqlfluff
 
   unit-tests:
     name: Unit Testing

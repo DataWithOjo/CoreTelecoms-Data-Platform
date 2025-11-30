@@ -17,3 +17,7 @@ profiles_dir = ./dbt_core_telecoms
 apply_dbt_builtins = true
 
 packages_install_path = ./dbt_core_telecoms
+
+[sqlfluff:templater:jinja:context]
+# Define dbt_utils as an object so the linter knows it exists
+dbt_utils = {}

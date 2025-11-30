@@ -29,27 +29,40 @@ jobs:
       - name: Install Linting Tools
         run: pip install flake8 sqlfluff sqlfluff-templater-dbt dbt-snowflake
 
-      - name: Debug - List Files
-        run: ls -R
-
       - name: Lint Python Code (DAGs & Scripts)
         run: |
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Lint SQL Code (dbt Models)
         run: |
-          # Dynamically find the folder containing dbt_project.yml
+          # Dynamically find the dbt project folder
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
-          
           echo "Found dbt project at: $DBT_DIR"
           
           if [ -z "$DBT_DIR" ]; then
             echo "Error: dbt_project.yml not found!"
             exit 1
           fi
-          
-          # Run sqlfluff on the 'models' subdirectory of that found folder
-          sqlfluff lint "$DBT_DIR/models" --dialect snowflake
+
+          # Create a dummy profiles.yml so dbt can compile without crashing
+          cat <<EOF > $DBT_DIR/profiles.yml
+          core_telecoms:
+            target: dev
+            outputs:
+              dev:
+                type: snowflake
+                account: dummy
+                user: dummy
+                password: dummy
+                role: dummy
+                warehouse: dummy
+                database: dummy
+                schema: dummy
+                threads: 1
+          EOF
+
+          # Run sqlfluff
+          sqlfluff lint "$DBT_DIR/models" --dialect snowflake --library-path "$DBT_DIR"
 
   unit-tests:
     name: Unit Testing

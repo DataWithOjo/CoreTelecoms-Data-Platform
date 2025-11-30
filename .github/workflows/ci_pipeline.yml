@@ -44,9 +44,9 @@ jobs:
           # Create dummy DBT profiles.yml
           cat <<EOF > $DBT_DIR/profiles.yml
           core_telecoms:
-            target: dev
+            target: none
             outputs:
-              dev:
+              none:
                 type: snowflake
                 account: dummy
                 user: dummy

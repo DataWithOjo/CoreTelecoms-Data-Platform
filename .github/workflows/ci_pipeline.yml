@@ -67,6 +67,12 @@ jobs:
           # Run sqlfluff
           sqlfluff lint "$DBT_DIR/models" --dialect snowflake --library-path "$DBT_DIR"
 
+          # We force it to use the dbt templater and point to our dummy profile
+          sqlfluff lint "$DBT_DIR/models" \
+            --dialect snowflake \
+            --templater dbt \
+            --library-path "$DBT_DIR"
+
   unit-tests:
     name: Unit Testing
     runs-on: ubuntu-latest

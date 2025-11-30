@@ -35,16 +35,19 @@ jobs:
 
       - name: Lint SQL Code (dbt Models)
         run: |
+          # Detect dbt project directory
           DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
           echo "Detected dbt project at: $DBT_DIR"
 
+          # Tell dbt where the profiles.yml is
           export DBT_PROFILES_DIR=$DBT_DIR
 
+          # Create dummy dbt profile
           cat <<EOF > $DBT_DIR/profiles.yml
           core_telecoms:
-            target: disabled
+            target: default
             outputs:
-              disabled:
+              default:
                 type: snowflake
                 account: dummy
                 user: dummy
@@ -57,8 +60,13 @@ jobs:
                 client_session_keep_alive: false
           EOF
 
+          echo "profiles.yml created at: $DBT_DIR/profiles.yml"
+          echo "DBT_PROFILES_DIR=$DBT_PROFILES_DIR"
+
+          # Install dbt packages
           dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR"
 
+          # Run SQLFluff with dbt templater
           sqlfluff lint "$DBT_DIR/models" --dialect snowflake
 
   unit-tests:

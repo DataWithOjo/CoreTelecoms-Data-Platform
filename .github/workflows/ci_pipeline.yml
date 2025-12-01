@@ -33,8 +33,11 @@ jobs:
         run: |
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      - name: Show SQLFluff config
-        run: sqlfluff config
+      - name: Debug SQLFluff config loading
+        run: sqlfluff lint --verbose dbt_core_telecoms/models || true
+
+      - name: Verify .sqlfluff file exists
+        run: ls -al .
 
       - name: Lint SQL (dbt models)
         run: |

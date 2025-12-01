@@ -11,4 +11,4 @@ SELECT
     email,
     address,
     DATEDIFF('year', date_of_birth, CURRENT_DATE()) AS customer_age
-FROM staging;
+FROM staging

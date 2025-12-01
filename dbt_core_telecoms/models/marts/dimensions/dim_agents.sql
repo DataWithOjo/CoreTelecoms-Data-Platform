@@ -7,4 +7,4 @@ SELECT
     agent_name,
     experience,
     state
-FROM staging;
+FROM staging

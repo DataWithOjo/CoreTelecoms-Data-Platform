@@ -12,4 +12,4 @@ SELECT
     call_start_time,
     call_end_time,
     DATEDIFF('second', call_start_time, call_end_time) AS call_duration_seconds
-FROM calls;
+FROM calls

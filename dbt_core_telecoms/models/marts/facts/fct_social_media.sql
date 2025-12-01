@@ -13,4 +13,4 @@ SELECT
     request_date,
     resolution_date,
     DATEDIFF('hour', request_date, resolution_date) AS time_to_resolve_hours
-FROM social;
+FROM social

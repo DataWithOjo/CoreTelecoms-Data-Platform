@@ -14,4 +14,4 @@ SELECT
     MONTHNAME(date_day) AS month_name,
     DAYOFWEEK(date_day) AS day_of_week,
     QUARTER(date_day) AS quarter
-FROM date_spine;
+FROM date_spine

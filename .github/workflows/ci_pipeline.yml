@@ -2,53 +2,151 @@ name: CoreTelecoms CI Pipeline
 
 on:
   pull_request:
+    # Runs the CI for any pull request targeting the 'main' branch
     branches: [ "main" ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
+  
+  # Optional: Runs CI on feature branch pushes, use this if you want immediate feedback
   push:
     branches: [ "**" ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
 
+# Define separate jobs for sequential quality gates
 jobs:
+  # ===================================================================
+  # JOB 1: CODE QUALITY & LINTING (FASTEST CHECKS)
+  # - Ensures style consistency and correct Jinja templating.
+  # - Does NOT require a live database connection (using SQLFluff config).
+  # ===================================================================
   quality-checks:
     name: Code Quality & Linting
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.10 and Venv
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip'
+          cache: 'pip' # Use cache for faster dependency installs
 
-      - name: Install Linting Tools
+      - name: Install DBT, SQLFluff, and Python Dependencies
         run: |
-          pip install flake8
-          pip install sqlfluff sqlfluff-templater-dbt
-          pip install dbt-core dbt-snowflake
+          # Install core tools
+          pip install --upgrade pip
+          pip install dbt-core dbt-snowflake sqlfluff sqlfluff-templater-dbt flake8
+          
+          # Install dbt packages from packages.yml
+          dbt deps --project-dir dbt_core_telecoms # <-- CRITICAL FIX: Installs dbt_utils
 
+      # -------------------------------------------------------------
+      # Lint Python (DAGs & Scripts)
+      # -------------------------------------------------------------
       - name: Lint Python Code (DAGs & Scripts)
         run: |
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      - name: Show SQLFluff version
-        run: sqlfluff version
-
-      - name: Verify .sqlfluff config exists
-        run: ls -al .
-
-      - name: Lint SQL (dbt models with dbt templater)
+      # -------------------------------------------------------------
+      # SQLFluff Linting (Relies on .sqlfluff config)
+      # -------------------------------------------------------------
+      - name: Lint SQL (dbt models via SQLFluff)
         run: |
+          # Use --config to ensure all CI settings are applied
           sqlfluff lint dbt_core_telecoms/models \
             --dialect snowflake \
-            --templater dbt
+            --templater dbt \
+            --config .sqlfluff # <-- CRITICAL: Uses the specific CI config
 
+  # ===================================================================
+  # JOB 2: DBT INTEGRATION & DATA TESTS
+  # - Requires a live, minimal database connection.
+  # - Uses the dbt state (Slim CI) for faster runs.
+  # ===================================================================
+  dbt-integration-tests:
+    name: Integration & Data Tests
+    runs-on: ubuntu-latest
+    needs: quality-checks # Only run if code quality passes
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Required for dbt state:modified to work
+
+      - name: Set up Python & Install DBT
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          
+      - name: Install DBT Dependencies
+        run: |
+          pip install dbt-core dbt-snowflake
+          dbt deps --project-dir dbt_core_telecoms
+          
+      # -------------------------------------------------------------
+      # Create CI DBT profile using GitHub Secrets
+      # -------------------------------------------------------------
+      - name: Create DBT profile (profiles.yml)
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+        run: |
+          mkdir -p ~/.dbt
+          cat <<EOF > ~/.dbt/profiles.yml
+          core_telecoms:
+            target: ci
+            outputs:
+              ci:
+                type: snowflake
+                account: "${SNOWFLAKE_ACCOUNT}"
+                user: "${SNOWFLAKE_USER}"
+                password: "${SNOWFLAKE_PASSWORD}"
+                role: "${SNOWFLAKE_ROLE}"
+                warehouse: "${SNOWFLAKE_WAREHOUSE}"
+                database: "${SNOWFLAKE_DATABASE}"
+                schema: "${SNOWFLAKE_SCHEMA}"
+                threads: 4
+                client_session_keep_alive: False
+          EOF
+
+      # -------------------------------------------------------------
+      # 1. Validation & Compilation Check
+      # -------------------------------------------------------------
+      - name: Validate DBT Environment (Connection Check)
+        run: dbt debug --project-dir dbt_core_telecoms --target ci
+
+      - name: Compile All Models
+        run: dbt compile --project-dir dbt_core_telecoms --target ci
+
+      # -------------------------------------------------------------
+      # 2. Run Modified Models (Slim CI)
+      # Requires a production artifact to be present in CI workspace
+      # -------------------------------------------------------------
+      - name: Run Modified Models and Downstream Dependents
+        run: dbt run --project-dir dbt_core_telecoms --target ci --select state:modified+
+
+      # -------------------------------------------------------------
+      # 3. Test Modified Models (Slim CI)
+      # -------------------------------------------------------------
+      - name: Test Modified Models
+        run: dbt test --project-dir dbt_core_telecoms --target ci --select state:modified+
+  # ===================================================================
+  # ============= UNIT TEST JOB ======================================
+  # ===================================================================
   unit-tests:
     name: Unit Testing
     runs-on: ubuntu-latest
@@ -62,16 +160,22 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip'
 
-      - name: Install Dependencies
+      - name: Create Python Virtual Environment
         run: |
+          python -m venv venv
+          echo "source venv/bin/activate" >> $GITHUB_ENV
+
+      - name: Install Test Dependencies
+        run: |
+          source venv/bin/activate
           pip install apache-airflow pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run Airflow DAG Unit Tests
+      - name: Run Unit Tests
         env:
           AIRFLOW_HOME: ${{ github.workspace }}
         run: |
+          source venv/bin/activate
           export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}"
           pytest tests/test_load_snowflake_pipeline.py

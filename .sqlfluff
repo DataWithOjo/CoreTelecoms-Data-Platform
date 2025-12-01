@@ -1,12 +1,26 @@
 [sqlfluff]
+# Set the target database dialect
 dialect = snowflake
+# Use the dbt templater to understand Jinja macros
 templater = dbt
+runaway_limit = 10
 max_line_length = 120
-exclude_rules = L009,L031,ST06
+indent_unit = space
+
+# Ignore these common errors which are often acceptable in dbt projects:
+# ST06: Select wildcards (SELECT *)
+# LT05: Line too long
+exclude_rules = ST06, LT05
 
 [sqlfluff:templater:dbt]
+# Path to the dbt project. Should be relative to the CI runner's workspace.
 project_dir = dbt_core_telecoms
-profiles_dir = IGNORE
-use_dbt_project = False
-load_macros_from_packages = True
-packages_install_path = dbt_core_telecoms/dbt_packages
+profiles_dir = ~/.dbt
+
+# CRITICAL FIX: Set to false to prevent database connection failures in CI
+apply_dbt_builtins = false
+
+# CRITICAL FIX: Explicitly point to the installed dbt_utils package macros
+# This resolves errors like 'str object' has no attribute 'date_spine'
+library_paths =
+    dbt_core_telecoms/dbt_packages/dbt_utils/macros

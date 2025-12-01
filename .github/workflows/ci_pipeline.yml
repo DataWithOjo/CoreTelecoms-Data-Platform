@@ -47,6 +47,31 @@ jobs:
           dbt deps --project-dir dbt_core_telecoms # <-- CRITICAL FIX: Installs dbt_utils
 
       # -------------------------------------------------------------
+      # Create MOCK DBT profile for SQLFluff templating
+      # -------------------------------------------------------------
+      - name: Create MOCK DBT profile for Linting
+        run: |
+          # The profile needs to exist and name the 'core_telecoms' profile,
+          # but the credentials can be fake since apply_dbt_builtins=false
+          mkdir -p ~/.dbt
+          cat <<EOF > ~/.dbt/profiles.yml
+          core_telecoms:
+            target: ci_mock
+            outputs:
+              ci_mock:
+                type: snowflake
+                account: "mock_account"
+                user: "mock_user"
+                password: "mock_password"
+                role: "mock_role"
+                warehouse: "mock_warehouse"
+                database: "mock_database"
+                schema: "mock_schema"
+                threads: 4
+                client_session_keep_alive: False
+          EOF
+
+      # -------------------------------------------------------------
       # Lint Python (DAGs & Scripts)
       # -------------------------------------------------------------
       - name: Lint Python Code (DAGs & Scripts)
@@ -62,12 +87,13 @@ jobs:
           sqlfluff lint dbt_core_telecoms/models \
             --dialect snowflake \
             --templater dbt \
-            --config .sqlfluff # <-- CRITICAL: Uses the specific CI config
+            --config .sqlfluff \
+            --profiles-dir ~/.dbt # <-- CRITICAL FIX APPLIED
 
   # ===================================================================
   # JOB 2: DBT INTEGRATION & DATA TESTS
-  # - Requires a live, minimal database connection.
-  # - Uses the dbt state (Slim CI) for faster runs.
+  # - This job still uses REAL secrets and requires a live connection.
+  # - NO CHANGES needed here, as the previous mock creation only applies to Job 1.
   # ===================================================================
   dbt-integration-tests:
     name: Integration & Data Tests
@@ -93,7 +119,7 @@ jobs:
           dbt deps --project-dir dbt_core_telecoms
           
       # -------------------------------------------------------------
-      # Create CI DBT profile using GitHub Secrets
+      # Create CI DBT profile using GitHub Secrets (REAL PROFILE)
       # -------------------------------------------------------------
       - name: Create DBT profile (profiles.yml)
         env:

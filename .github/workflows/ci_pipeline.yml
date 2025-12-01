@@ -44,7 +44,7 @@ jobs:
           pip install dbt-core dbt-snowflake sqlfluff sqlfluff-templater-dbt flake8
           
           # Install dbt packages from packages.yml
-          dbt deps --project-dir dbt_core_telecoms # <-- CRITICAL FIX: Installs dbt_utils
+          dbt deps --project-dir dbt_core_telecoms 
 
       # -------------------------------------------------------------
       # Create MOCK DBT profile for SQLFluff templating
@@ -79,21 +79,19 @@ jobs:
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
       # -------------------------------------------------------------
-      # SQLFluff Linting (Relies on .sqlfluff config)
+      # SQLFluff Linting (Relies entirely on .sqlfluff config)
       # -------------------------------------------------------------
       - name: Lint SQL (dbt models via SQLFluff)
         run: |
-          # Use --config to ensure all CI settings are applied
+          # Removed the invalid --profiles-dir flag. All configuration is in .sqlfluff.
           sqlfluff lint dbt_core_telecoms/models \
             --dialect snowflake \
             --templater dbt \
-            --config .sqlfluff \
-            --profiles-dir ~/.dbt # <-- CRITICAL FIX APPLIED
+            --config .sqlfluff
 
   # ===================================================================
   # JOB 2: DBT INTEGRATION & DATA TESTS
-  # - This job still uses REAL secrets and requires a live connection.
-  # - NO CHANGES needed here, as the previous mock creation only applies to Job 1.
+  # - This job uses REAL secrets and requires a live connection.
   # ===================================================================
   dbt-integration-tests:
     name: Integration & Data Tests

@@ -2,26 +2,18 @@ name: CoreTelecoms CI Pipeline
 
 on:
   pull_request:
-    # Runs the CI for any pull request targeting the 'main' branch
     branches: [ "main" ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
   
-  # Optional: Runs CI on feature branch pushes, use this if you want immediate feedback
   push:
     branches: [ "**" ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
 
-# Define separate jobs for sequential quality gates
 jobs:
-  # ===================================================================
-  # JOB 1: CODE QUALITY & LINTING (FASTEST CHECKS)
-  # - Ensures style consistency and correct Jinja templating.
-  # - Uses the DUCKDB adapter to mock the profile and prevent connection attempts.
-  # ===================================================================
   quality-checks:
     name: Code Quality & Linting
     runs-on: ubuntu-latest
@@ -35,23 +27,19 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip' # Use cache for faster dependency installs
+          cache: 'pip' 
 
       - name: Install DBT, SQLFluff, and Python Dependencies
         run: |
           # Install core tools
           pip install --upgrade pip
-          pip install dbt-core dbt-snowflake sqlfluff sqlfluff-templater-dbt flake8 dbt-duckdb # Install dbt-duckdb for mock profile
+          pip install dbt-core dbt-snowflake sqlfluff sqlfluff-templater-dbt flake8 dbt-duckdb 
           
           # Install dbt packages from packages.yml
           dbt deps --project-dir dbt_core_telecoms 
 
-      # -------------------------------------------------------------
-      # Create MOCK DBT profile for SQLFluff templating (using DuckDB)
-      # -------------------------------------------------------------
       - name: Create MOCK DBT profile for Linting
         run: |
-          # The profile needs to exist and name the 'core_telecoms' profile.
           # We use DUCKDB to prevent the Snowflake adapter from forcing a network connection check.
           mkdir -p ~/.dbt
           cat <<EOF > ~/.dbt/profiles.yml
@@ -64,16 +52,10 @@ jobs:
                 schema: "mock_schema"
           EOF
 
-      # -------------------------------------------------------------
-      # Lint Python (DAGs & Scripts)
-      # -------------------------------------------------------------
       - name: Lint Python Code (DAGs & Scripts)
         run: |
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      # -------------------------------------------------------------
-      # SQLFluff Linting (Relies entirely on .sqlfluff config)
-      # -------------------------------------------------------------
       - name: Lint SQL (dbt models via SQLFluff)
         run: |
           # All connection logic is now safely mocked by the DuckDB profile adapter.
@@ -82,21 +64,17 @@ jobs:
             --templater dbt \
             --config .sqlfluff
 
-  # ===================================================================
-  # JOB 2: DBT INTEGRATION & DATA TESTS
-  # - This job uses REAL secrets and requires a live connection.
-  # ===================================================================
   dbt-integration-tests:
     name: Integration & Data Tests
     runs-on: ubuntu-latest
-    needs: quality-checks # Only run if code quality passes
+    needs: quality-checks
     timeout-minutes: 20
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Required for dbt state:modified to work
+          fetch-depth: 0 
 
       - name: Set up Python & Install DBT
         uses: actions/setup-python@v4
@@ -110,9 +88,6 @@ jobs:
           pip install dbt-core dbt-snowflake
           dbt deps --project-dir dbt_core_telecoms
           
-      # -------------------------------------------------------------
-      # Create CI DBT profile using GitHub Secrets (REAL PROFILE)
-      # -------------------------------------------------------------
       - name: Create DBT profile (profiles.yml)
         env:
           SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
@@ -141,30 +116,18 @@ jobs:
                 client_session_keep_alive: False
           EOF
 
-      # -------------------------------------------------------------
-      # 1. Validation & Compilation Check
-      # -------------------------------------------------------------
       - name: Validate DBT Environment (Connection Check)
         run: dbt debug --project-dir dbt_core_telecoms --target ci
 
       - name: Compile All Models
         run: dbt compile --project-dir dbt_core_telecoms --target ci
 
-      # -------------------------------------------------------------
-      # 2. Run Modified Models (Slim CI)
-      # Requires a production artifact to be present in CI workspace
-      # -------------------------------------------------------------
       - name: Run Modified Models and Downstream Dependents
         run: dbt run --project-dir dbt_core_telecoms --target ci --select state:modified+
 
-      # -------------------------------------------------------------
-      # 3. Test Modified Models (Slim CI)
-      # -------------------------------------------------------------
       - name: Test Modified Models
         run: dbt test --project-dir dbt_core_telecoms --target ci --select state:modified+
-  # ===================================================================
-  # ============= UNIT TEST JOB ======================================
-  # ===================================================================
+
   unit-tests:
     name: Unit Testing
     runs-on: ubuntu-latest

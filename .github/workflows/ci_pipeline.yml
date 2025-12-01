@@ -56,7 +56,7 @@ jobs:
                 threads: 1
           EOF
 
-          # Create .sqlfluff config so dbt templater points to the right profile
+          # Write .sqlfluff with compile overrides
           cat <<EOF > .sqlfluff
           [sqlfluff]
           dialect = snowflake
@@ -66,15 +66,18 @@ jobs:
           project_dir = dbt_core_telecoms
           profiles_dir = dbt_core_telecoms
           load_macros_from_packages = true
+
+          [sqlfluff:templater:dbt:compile]
+          static_parser = true
+          no_partial_parse = true
           EOF
 
           echo "sqlfluff config written"
 
-          # Install dbt packages (macros)
+          # Install dbt packages
           dbt deps --project-dir "$ABS_DBT_DIR" --profiles-dir "$ABS_DBT_DIR"
 
-          # Lint SQL
-          sqlfluff lint "$ABS_DBT_DIR/models"
+          sqlfluff lint "$ABS_DBT_DIR/models" --config .sqlfluff
 
   unit-tests:
     name: Unit Testing

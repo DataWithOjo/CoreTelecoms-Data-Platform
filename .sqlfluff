@@ -4,5 +4,9 @@ templater = dbt
 
 [sqlfluff:templater:dbt]
 project_dir = dbt_core_telecoms
-profiles_dir = dbt_core_telecoms        
+profiles_dir = dbt_core_telecoms
 load_macros_from_packages = true
+
+[sqlfluff:templater:dbt:compile]
+static_parser = True        
+no_partial_parse = True      

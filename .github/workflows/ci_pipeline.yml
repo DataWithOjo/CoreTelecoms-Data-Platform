@@ -27,7 +27,7 @@ jobs:
           cache: 'pip'
 
       - name: Install Linting Tools
-        run: pip install flake8 sqlfluff sqlfluff-templater-dbt dbt-snowflake
+        run: pip install flake8 sqlfluff sqlfluff-templater-dbt dbt-snowflake==1.5.0
 
       - name: Lint Python Code (DAGs & Scripts)
         run: |

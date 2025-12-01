@@ -1,18 +1,21 @@
 [sqlfluff]
 dialect = snowflake
 templater = dbt
-max_line_length = 120
+
+# Prevent full dbt compilation
+# (this disables profile loading)
+process_executor = templater
+
 exclude_rules = L009,L031,ST06
 
+max_line_length = 120
+
 [sqlfluff:templater:dbt]
-# Prevent SQLFluff from connecting to Snowflake
-apply_dbt_builtins = false
-# Tell SQLFluff where macros live
-project_dir = ./dbt_core_telecoms
-profiles_dir = IGNORE
+project_dir = dbt_core_telecoms
+# disable dbt CLI usage entirely
+use_dbt_project = false
+use_jinja_parser = true
 
+# Let SQLFluff load macros without dbt deps
 load_macros_from_packages = true
-packages_install_path = ./dbt_core_telecoms/dbt_packages
-
-[sqlfluff:templater:dbt:context]
-dbt_utils = {}
+packages_install_path = dbt_core_telecoms/dbt_packages

@@ -151,11 +151,8 @@ jobs:
 
       - name: Run Modified Models
         if: steps.selector.outputs.mode == 'state'
-        run: dbt run \
-              --project-dir dbt_core_telecoms \
-              --target ci \
-              --select "state:modified+" \
-              --state dbt_state
+        run: |
+          dbt run --project-dir dbt_core_telecoms --target ci --select "state:modified+" --state dbt_state
 
       - name: Test Modified Models
         if: steps.selector.outputs.mode == 'state'
@@ -167,9 +164,8 @@ jobs:
 
       - name: Run All Models (No prior manifest)
         if: steps.selector.outputs.mode == 'full'
-        run: dbt run \
-              --project-dir dbt_core_telecoms \
-              --target ci
+        run: |
+          dbt run --project-dir dbt_core_telecoms --target ci
 
       - name: Test All Models (No prior manifest)
         if: steps.selector.outputs.mode == 'full'

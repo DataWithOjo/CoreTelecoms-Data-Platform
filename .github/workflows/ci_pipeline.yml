@@ -56,8 +56,9 @@ jobs:
                 threads: 1
           EOF
 
-          # Write .sqlfluff with compile overrides
-          cat <<EOF > .sqlfluff
+          # Write .sqlfluff in WORKSPACE ROOT
+          SQLFLUFF_CONFIG="$GITHUB_WORKSPACE/.sqlfluff"
+          cat <<EOF > $SQLFLUFF_CONFIG
           [sqlfluff]
           dialect = snowflake
           templater = dbt
@@ -72,12 +73,13 @@ jobs:
           no_partial_parse = true
           EOF
 
-          echo "sqlfluff config written"
+          echo "sqlfluff config written at: $SQLFLUFF_CONFIG"
 
           # Install dbt packages
           dbt deps --project-dir "$ABS_DBT_DIR" --profiles-dir "$ABS_DBT_DIR"
 
-          sqlfluff lint "$ABS_DBT_DIR/models" --config .sqlfluff
+          # Run sqlfluff with correct config
+          sqlfluff lint "$ABS_DBT_DIR/models" --config $SQLFLUFF_CONFIG
 
   unit-tests:
     name: Unit Testing

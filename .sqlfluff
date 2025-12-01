@@ -1,3 +1,6 @@
+SQLFLUFF_CONFIG="$GITHUB_WORKSPACE/.sqlfluff"
+
+cat <<EOF > $SQLFLUFF_CONFIG
 [sqlfluff]
 dialect = snowflake
 templater = dbt
@@ -8,5 +11,6 @@ profiles_dir = dbt_core_telecoms
 load_macros_from_packages = true
 
 [sqlfluff:templater:dbt:compile]
-static_parser = True        
-no_partial_parse = True      
+static_parser = true
+no_partial_parse = true
+EOF

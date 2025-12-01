@@ -2,13 +2,10 @@ name: CoreTelecoms CI Pipeline
 
 on:
   pull_request:
-    # Runs the CI for any pull request targeting the 'main' branch
     branches: [ "main" ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
-  
-  # Runs CI on feature branch pushes using correct globbing syntax
   push:
     branches: ["**"]
     paths-ignore:
@@ -16,9 +13,6 @@ on:
       - 'docs/**'
 
 jobs:
-  # ===================================================================
-  # JOB 1: CODE QUALITY & LINTING (FASTEST, OFFLINE CHECKS)
-  # ===================================================================
   quality-checks:
     name: Code Quality & Linting
     runs-on: ubuntu-latest
@@ -70,20 +64,17 @@ jobs:
             --templater dbt \
             --config .sqlfluff
 
-  # ===================================================================
-  # JOB 2: DBT INTEGRATION & DATA TESTS (SLIM CI - REAL CONNECTION)
-  # ===================================================================
   dbt-integration-tests:
     name: Integration & Data Tests
     runs-on: ubuntu-latest
-    needs: quality-checks # Only runs if linting and code quality pass
+    needs: quality-checks
     timeout-minutes: 20
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Required to compare state history for Slim CI
+          fetch-depth: 0
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v4
@@ -124,15 +115,13 @@ jobs:
                 threads: 4
                 client_session_keep_alive: False
           EOF
-
-      # --- SLIM CI STEPS ---
       
       - name: Download previous manifest for state comparison
         uses: actions/download-artifact@v4
-        continue-on-error: true # <-- SYNTACTICALLY CORRECT PLACEMENT
+        continue-on-error: true
         with:
           name: dbt-manifest
-          path: dbt_state # The path where dbt expects the manifest.json artifact
+          path: dbt_state
 
       - name: Determine selector mode
         id: selector
@@ -181,9 +170,6 @@ jobs:
           name: dbt-manifest
           path: dbt_core_telecoms/target/manifest.json
 
-  # ===================================================================
-  # JOB 3: UNIT TESTING (Python/Airflow Logic)
-  # ===================================================================
   unit-tests:
     name: Unit Testing
     runs-on: ubuntu-latest
@@ -227,6 +213,9 @@ jobs:
         env:
           AIRFLOW_HOME: ${{ github.workspace }}
         run: |
-          # Ensures local scripts and DAGs can be imported
-          export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}" 
-          pytest tests/
+          platform linux -- Python 3.10.19, pytest-9.0.1, pluggy-1.6.0
+          rootdir: /home/runner/work/CoreTelecoms-Data-Platform/CoreTelecoms-Data-Platform
+          configfile: pytest.ini
+                    # Ensures local scripts and DAGs can be imported
+                    export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}" 
+                    pytest tests/

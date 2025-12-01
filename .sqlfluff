@@ -1,16 +1,18 @@
-SQLFLUFF_CONFIG="$GITHUB_WORKSPACE/.sqlfluff"
-
-cat <<EOF > $SQLFLUFF_CONFIG
 [sqlfluff]
 dialect = snowflake
 templater = dbt
+max_line_length = 120
+exclude_rules = L009,L031,ST06
 
 [sqlfluff:templater:dbt]
-project_dir = dbt_core_telecoms
-profiles_dir = dbt_core_telecoms
-load_macros_from_packages = true
+# Prevent SQLFluff from connecting to Snowflake
+apply_dbt_builtins = false
+# Tell SQLFluff where macros live
+project_dir = ./dbt_core_telecoms
+profiles_dir = IGNORE
 
-[sqlfluff:templater:dbt:compile]
-static_parser = true
-no_partial_parse = true
-EOF
+load_macros_from_packages = true
+packages_install_path = ./dbt_core_telecoms/dbt_packages
+
+[sqlfluff:templater:dbt:context]
+dbt_utils = {}

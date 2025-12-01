@@ -33,53 +33,9 @@ jobs:
         run: |
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      - name: Lint SQL Code (dbt Models)
+      - name: Lint SQL (dbt models)
         run: |
-          DBT_DIR=$(dirname $(find . -name dbt_project.yml -type f | head -n 1))
-          ABS_DBT_DIR=$(cd $DBT_DIR && pwd)
-          echo "Detected dbt project at: $ABS_DBT_DIR"
-
-          # Create dummy dbt profile
-          cat <<EOF > $ABS_DBT_DIR/profiles.yml
-          core_telecoms:
-            target: default
-            outputs:
-              default:
-                type: snowflake
-                account: dummy
-                user: dummy
-                password: dummy
-                role: dummy
-                warehouse: dummy
-                database: dummy
-                schema: dummy
-                threads: 1
-          EOF
-
-          # Write .sqlfluff in WORKSPACE ROOT
-          SQLFLUFF_CONFIG="$GITHUB_WORKSPACE/.sqlfluff"
-          cat <<EOF > $SQLFLUFF_CONFIG
-          [sqlfluff]
-          dialect = snowflake
-          templater = dbt
-
-          [sqlfluff:templater:dbt]
-          project_dir = dbt_core_telecoms
-          profiles_dir = dbt_core_telecoms
-          load_macros_from_packages = true
-
-          [sqlfluff:templater:dbt:compile]
-          static_parser = true
-          no_partial_parse = true
-          EOF
-
-          echo "sqlfluff config written at: $SQLFLUFF_CONFIG"
-
-          # Install dbt packages
-          dbt deps --project-dir "$ABS_DBT_DIR" --profiles-dir "$ABS_DBT_DIR"
-
-          # Run sqlfluff with correct config
-          sqlfluff lint "$ABS_DBT_DIR/models" --config $SQLFLUFF_CONFIG
+          sqlfluff lint dbt_core_telecoms/models
 
   unit-tests:
     name: Unit Testing

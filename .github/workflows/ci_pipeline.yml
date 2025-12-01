@@ -2,18 +2,23 @@ name: CoreTelecoms CI Pipeline
 
 on:
   pull_request:
+    # Runs the CI for any pull request targeting the 'main' branch
     branches: [ "main" ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
   
+  # Runs CI on feature branch pushes using correct globbing syntax
   push:
-    branches: [ "**" ]
+    branches: ["**"]
     paths-ignore:
       - '**.md'
       - 'docs/**'
 
 jobs:
+  # ===================================================================
+  # JOB 1: CODE QUALITY & LINTING (FASTEST, OFFLINE CHECKS)
+  # ===================================================================
   quality-checks:
     name: Code Quality & Linting
     runs-on: ubuntu-latest
@@ -23,7 +28,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set up Python 3.10 and Venv
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -31,7 +36,7 @@ jobs:
 
       - name: Install DBT, SQLFluff, and Python Dependencies
         run: |
-          # Install core tools
+          # Install core tools, DUCKDB adapter (for mocking), and flake8
           pip install --upgrade pip
           pip install dbt-core dbt-snowflake sqlfluff sqlfluff-templater-dbt flake8 dbt-duckdb 
           
@@ -40,7 +45,8 @@ jobs:
 
       - name: Create MOCK DBT profile for Linting
         run: |
-          # We use DUCKDB to prevent the Snowflake adapter from forcing a network connection check.
+          # CRITICAL FIX: Use DUCKDB to prevent the Snowflake adapter from forcing a network connection check.
+          # The .sqlfluff file points to this location.
           mkdir -p ~/.dbt
           cat <<EOF > ~/.dbt/profiles.yml
           core_telecoms:
@@ -58,25 +64,28 @@ jobs:
 
       - name: Lint SQL (dbt models via SQLFluff)
         run: |
-          # All connection logic is now safely mocked by the DuckDB profile adapter.
+          # Lint command relies entirely on the .sqlfluff file for profiles_dir, apply_dbt_builtins, etc.
           sqlfluff lint dbt_core_telecoms/models \
             --dialect snowflake \
             --templater dbt \
             --config .sqlfluff
 
+  # ===================================================================
+  # JOB 2: DBT INTEGRATION & DATA TESTS (SLIM CI - REAL CONNECTION)
+  # ===================================================================
   dbt-integration-tests:
     name: Integration & Data Tests
     runs-on: ubuntu-latest
-    needs: quality-checks
+    needs: quality-checks # Only runs if linting and code quality pass
     timeout-minutes: 20
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 
+          fetch-depth: 0 # Required to compare state history for Slim CI
 
-      - name: Set up Python & Install DBT
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -84,7 +93,7 @@ jobs:
           
       - name: Install DBT Dependencies
         run: |
-          # We still need the Snowflake adapter for this real connection job.
+          # Install dbt-snowflake adapter and packages for this real connection job.
           pip install dbt-core dbt-snowflake
           dbt deps --project-dir dbt_core_telecoms
           
@@ -116,28 +125,77 @@ jobs:
                 client_session_keep_alive: False
           EOF
 
+      # --- SLIM CI STEPS ---
+      
+      - name: Download previous manifest for state comparison
+        uses: actions/download-artifact@v4
+        continue-on-error: true # <-- SYNTACTICALLY CORRECT PLACEMENT
+        with:
+          name: dbt-manifest
+          path: dbt_state # The path where dbt expects the manifest.json artifact
+
+      - name: Determine selector mode
+        id: selector
+        run: |
+          if [ -f "dbt_state/manifest.json" ]; then
+            echo "mode=state" >> $GITHUB_OUTPUT
+          else
+            echo "mode=full" >> $GITHUB_OUTPUT
+          fi
+
       - name: Validate DBT Environment (Connection Check)
         run: dbt debug --project-dir dbt_core_telecoms --target ci
 
-      - name: Compile All Models
+      - name: Compile Models
         run: dbt compile --project-dir dbt_core_telecoms --target ci
 
       - name: Run Modified Models
-        run: dbt run --project-dir dbt_core_telecoms --target ci --select "state:modified+" --state dbt_core_telecoms/target
+        if: steps.selector.outputs.mode == 'state'
+        run: dbt run \
+              --project-dir dbt_core_telecoms \
+              --target ci \
+              --select "state:modified+" \
+              --state dbt_state
 
       - name: Test Modified Models
-        run: dbt test --project-dir dbt_core_telecoms --target ci --select "state:modified+" --state dbt_core_telecoms/target
+        if: steps.selector.outputs.mode == 'state'
+        run: dbt test \
+              --project-dir dbt_core_telecoms \
+              --target ci \
+              --select "state:modified+" \
+              --state dbt_state
 
+      - name: Run All Models (No prior manifest)
+        if: steps.selector.outputs.mode == 'full'
+        run: dbt run \
+              --project-dir dbt_core_telecoms \
+              --target ci
+
+      - name: Test All Models (No prior manifest)
+        if: steps.selector.outputs.mode == 'full'
+        run: dbt test \
+              --project-dir dbt_core_telecoms \
+              --target ci
+
+      - name: Upload manifest for next run
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-manifest
+          path: dbt_core_telecoms/target/manifest.json
+
+  # ===================================================================
+  # JOB 3: UNIT TESTING (Python/Airflow Logic)
+  # ===================================================================
   unit-tests:
     name: Unit Testing
     runs-on: ubuntu-latest
-    needs: quality-checks
+    needs: quality-checks 
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set up Python 3.10 and Venv
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -171,5 +229,6 @@ jobs:
         env:
           AIRFLOW_HOME: ${{ github.workspace }}
         run: |
-          export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}"
+          # Ensures local scripts and DAGs can be imported
+          export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}" 
           pytest tests/

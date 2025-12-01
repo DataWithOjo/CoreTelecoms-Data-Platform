@@ -16,6 +16,7 @@ jobs:
   quality-checks:
     name: Code Quality & Linting
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -27,26 +28,32 @@ jobs:
           cache: 'pip'
 
       - name: Install Linting Tools
-        run: pip install flake8 sqlfluff sqlfluff-templater-dbt dbt-snowflake==1.5.0
+        run: |
+          pip install flake8
+          pip install sqlfluff sqlfluff-templater-dbt
+          pip install dbt-core dbt-snowflake
 
       - name: Lint Python Code (DAGs & Scripts)
         run: |
           flake8 dags scripts --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      - name: Debug SQLFluff config loading
-        run: sqlfluff lint --verbose dbt_core_telecoms/models || true
+      - name: Show SQLFluff version
+        run: sqlfluff version
 
-      - name: Verify .sqlfluff file exists
+      - name: Verify .sqlfluff config exists
         run: ls -al .
 
-      - name: Lint SQL (dbt models)
+      - name: Lint SQL (dbt models with dbt templater)
         run: |
-          sqlfluff lint dbt_core_telecoms/models
+          sqlfluff lint dbt_core_telecoms/models \
+            --dialect snowflake \
+            --templater dbt
 
   unit-tests:
     name: Unit Testing
     runs-on: ubuntu-latest
     needs: quality-checks
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3

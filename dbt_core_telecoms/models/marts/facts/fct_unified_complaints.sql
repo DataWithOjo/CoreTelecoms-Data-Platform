@@ -4,42 +4,42 @@
 ) }}
 
 WITH calls AS (
-    SELECT 
+    SELECT
         call_id AS source_complaint_id,
         customer_id,
         agent_id,
         'Call Center' AS channel,
         complaint_category,
         resolution_status AS status,
-        call_start_time AS started_at, 
+        call_start_time AS started_at,
         call_end_time AS ended_at,
         _ingestion_time AS ingested_at
     FROM {{ ref('stg_call_logs') }}
 ),
 
 web AS (
-    SELECT 
+    SELECT
         request_id AS source_complaint_id,
         customer_id,
         agent_id,
         'Web Form' AS channel,
         complaint_category,
         resolution_status AS status,
-        request_date AS started_at,   
+        request_date AS started_at,
         resolution_date AS ended_at,
         _ingestion_time AS ingested_at
     FROM {{ ref('stg_web_complaints') }}
 ),
 
 social AS (
-    SELECT 
+    SELECT
         complaint_id AS source_complaint_id,
         customer_id,
         agent_id,
         'Social Media' AS channel,
         complaint_category,
         resolution_status AS status,
-        request_date AS started_at,    
+        request_date AS started_at,   
         resolution_date AS ended_at,
         _ingestion_time AS ingested_at
     FROM {{ ref('stg_social_media') }}

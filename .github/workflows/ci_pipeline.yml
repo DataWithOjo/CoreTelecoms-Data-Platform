@@ -123,10 +123,18 @@ jobs:
         run: dbt compile --project-dir dbt_core_telecoms --target ci
 
       - name: Run Modified Models and Downstream Dependents
-        run: dbt run --project-dir dbt_core_telecoms --target ci --select state:modified+
+        run: dbt run \
+          --project-dir dbt_core_telecoms \
+          --target ci \
+          --select state:modified+ \
+          --state dbt_core_telecoms/target
 
       - name: Test Modified Models
-        run: dbt test --project-dir dbt_core_telecoms --target ci --select state:modified+
+        run: dbt test \
+          --project-dir dbt_core_telecoms \
+          --target ci \
+          --select state:modified+ \
+          --state dbt_core_telecoms/target
 
   unit-tests:
     name: Unit Testing

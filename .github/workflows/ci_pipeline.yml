@@ -20,7 +20,7 @@ jobs:
   # ===================================================================
   # JOB 1: CODE QUALITY & LINTING (FASTEST CHECKS)
   # - Ensures style consistency and correct Jinja templating.
-  # - Does NOT require a live database connection (using SQLFluff config).
+  # - Uses the DUCKDB adapter to mock the profile and prevent connection attempts.
   # ===================================================================
   quality-checks:
     name: Code Quality & Linting
@@ -41,34 +41,27 @@ jobs:
         run: |
           # Install core tools
           pip install --upgrade pip
-          pip install dbt-core dbt-snowflake sqlfluff sqlfluff-templater-dbt flake8
+          pip install dbt-core dbt-snowflake sqlfluff sqlfluff-templater-dbt flake8 dbt-duckdb # Install dbt-duckdb for mock profile
           
           # Install dbt packages from packages.yml
           dbt deps --project-dir dbt_core_telecoms 
 
       # -------------------------------------------------------------
-      # Create MOCK DBT profile for SQLFluff templating
+      # Create MOCK DBT profile for SQLFluff templating (using DuckDB)
       # -------------------------------------------------------------
       - name: Create MOCK DBT profile for Linting
         run: |
-          # The profile needs to exist and name the 'core_telecoms' profile,
-          # but the credentials can be fake since apply_dbt_builtins=false
+          # The profile needs to exist and name the 'core_telecoms' profile.
+          # We use DUCKDB to prevent the Snowflake adapter from forcing a network connection check.
           mkdir -p ~/.dbt
           cat <<EOF > ~/.dbt/profiles.yml
           core_telecoms:
             target: ci_mock
             outputs:
               ci_mock:
-                type: snowflake
-                account: "mock_account"
-                user: "mock_user"
-                password: "mock_password"
-                role: "mock_role"
-                warehouse: "mock_warehouse"
-                database: "mock_database"
+                type: duckdb
+                path: ":memory:"
                 schema: "mock_schema"
-                threads: 4
-                client_session_keep_alive: False
           EOF
 
       # -------------------------------------------------------------
@@ -83,7 +76,7 @@ jobs:
       # -------------------------------------------------------------
       - name: Lint SQL (dbt models via SQLFluff)
         run: |
-          # Removed the invalid --profiles-dir flag. All configuration is in .sqlfluff.
+          # All connection logic is now safely mocked by the DuckDB profile adapter.
           sqlfluff lint dbt_core_telecoms/models \
             --dialect snowflake \
             --templater dbt \
@@ -113,6 +106,7 @@ jobs:
           
       - name: Install DBT Dependencies
         run: |
+          # We still need the Snowflake adapter for this real connection job.
           pip install dbt-core dbt-snowflake
           dbt deps --project-dir dbt_core_telecoms
           

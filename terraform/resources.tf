@@ -19,11 +19,6 @@ resource "aws_ecr_repository" "airflow_repo" {
   }
 }
 
-resource "aws_secretsmanager_secret" "db_creds" {
-  name        = "${var.project_name}/postgres_creds"
-  description = "Credentials for Source Postgres DB"
-}
-
 resource "aws_secretsmanager_secret" "google_creds" {
   name        = "${var.project_name}/google_service_account"
   description = "JSON Key for Google Sheets Access"

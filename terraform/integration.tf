@@ -56,3 +56,24 @@ resource "snowflake_storage_integration" "s3_int" {
     "s3://${aws_s3_bucket.raw_zone.bucket}/"
   ]
 }
+
+resource "aws_iam_role" "airflow_execution_role" {
+  name = "${var.project_name}-Airflow-Secrets-ETL-Role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
+      Principal = {
+        AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+      }
+      Condition = {
+        StringEquals = {
+          "sts:ExternalId" = var.developer_external_id
+        }
+      }
+    }]
+  })
+}
+

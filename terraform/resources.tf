@@ -43,3 +43,10 @@ resource "snowflake_schema" "analytics_schema" {
   database = snowflake_database.dw.name
   name     = "ANALYTICS"
 }
+
+resource "aws_iam_user" "cd_user" {
+  name = "gha-cd-user-${var.project_name}"
+  tags = {
+    Name = "GitHub Actions CD User"
+  }
+}

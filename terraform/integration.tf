@@ -77,3 +77,37 @@ resource "aws_iam_role" "airflow_execution_role" {
   })
 }
 
+data "aws_iam_policy_document" "ecr_access_document" {
+  statement {
+    sid = "AllowECRLogin"
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "AllowPushPullToRepo"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:PutImage",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload",
+    ]
+    resources = [aws_ecr_repository.airflow_repo.arn]
+  }
+}
+
+resource "aws_iam_policy" "ecr_access_policy" {
+  name        = "ECR-CD-Access-${var.project_name}"
+  description = "Policy for GitHub Actions to access ECR."
+  policy      = data.aws_iam_policy_document.ecr_access_document.json
+}
+
+resource "aws_iam_user_policy_attachment" "cd_policy_attach" {
+  user       = aws_iam_user.cd_user.name
+  policy_arn = aws_iam_policy.ecr_access_policy.arn
+}

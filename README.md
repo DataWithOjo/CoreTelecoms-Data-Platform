@@ -284,6 +284,10 @@ This is the comprehensive **Phase 2: Airflow Orchestration Environment** documen
 
 Phase 2 transforms Apache Airflow from a simple task scheduler into the **central control plane** for the entire CoreTelecoms Data Platform. It coordinates the complete data lifecycle—from ingestion and loading to transformation and testing—while ensuring full observability and resilience.
 
+![airflow connect ui](docs/airflow-conn.png)
+![airflow variable ui](docs/airflow-variables.png)
+![airflow asset ui](docs/airflow-asset.png)
+
 **Primary Objectives:**
 
   * **Production-Grade Reliability:** Pipelines must run predictably, handling failures gracefully without manual intervention.
@@ -486,6 +490,7 @@ CORETELECOMS-DATA-PLATFORM/
 The ingestion layer is the gateway to the data platform. Its primary mandate is to decouple source systems from the warehouse, ensuring that only valid, schema-compliant data reaches Snowflake.
 
 ![ingestion image](docs/ingestion-graph.png)
+![ingestion list view](docs/ingestion-pipeline.png)
 
 **Core Objectives:**
 
@@ -680,6 +685,7 @@ This is the fully detailed **Phase 4: Snowflake Loading Pipeline** documentation
 This phase manages the critical transition from the **Bronze Layer** (Raw S3 Parquet) to the **Silver Layer** (Structured Snowflake Tables). It is not a simple copy command; it is an intelligent loading system designed to handle data quality issues, duplicates, and schema drift before the data is ready for transformation.
 
 ![snowflake ingestion](docs/snowflake-graph.png)
+![snowflake list view](docs/load-snowflake.png)
 
 **Core Objectives:**
 
@@ -871,6 +877,7 @@ This phase represents the "T" in ELT, converting raw Snowflake tables into high-
 The Transformation Layer acts as the bridge between raw data and business intelligence. While the Ingestion layer ensures data *arrives* safely, this layer ensures it makes *sense*.
 
 ![dbt pipeline](docs/dbt-graph.png)
+![dbt list view](docs/dbt-pipeline.png)
 
 **Core Objectives:**
 
@@ -1243,6 +1250,9 @@ The objective of this phase is to ensure the entire ELT platform can run unatten
 
 This requires enhancements across the entire stack—Airflow, Snowflake, dbt, S3, and Terraform—to meet the requirements of enterprise-grade production systems: stability, observability, fault tolerance, and security.
 
+![ingestion failure callback](docs/failure_ingestion.png)
+![ingestion sucess](docs/success-ingestion.png)
+
 ---
 
 ## 7.2. Fail-Fast Design Pattern (CRUCIAL)
@@ -1544,6 +1554,8 @@ This phase solidifies the platform as a **Zero-Trust Environment**.
 
 ## 9.1. Objective
 The objective of this phase is to ensure the CoreTelecoms Data Platform enforces strict **Least Privilege Access** and **Zero-Trust Principles**. Security is not an afterthought; it is baked into the infrastructure, orchestration, and transformation layers.
+
+![aws-ecr image](docs/aws-ecr-ss.png)
 
 **Core Mandates:**
 * **Credential Isolation:** No hardcoded passwords exist in Git, Docker images, or Airflow Variables.

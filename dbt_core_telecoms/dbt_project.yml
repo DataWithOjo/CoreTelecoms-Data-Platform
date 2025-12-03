@@ -1,0 +1,32 @@
+name: 'core_telecoms'
+version: '1.0.0'
+config-version: 2
+
+profile: 'core_telecoms'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  core_telecoms:
+
+    staging:
+      +materialized: view
+      +schema: STAGING
+      +transient: true
+
+    marts:
+      +materialized: table
+      +schema: ANALYTICS
+      +copy_grants: true
+
+      fct_unified_complaints:
+        +materialized: incremental
+        +cluster_by: ["TO_DATE(started_at)"]   

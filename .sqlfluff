@@ -1,0 +1,19 @@
+[sqlfluff]
+dialect = snowflake
+# Use the dbt templater to understand Jinja macros
+templater = dbt
+runaway_limit = 10
+max_line_length = 120
+indent_unit = space
+
+# Corrected Rule IDs for common ignores
+exclude_rules = L016, L022, L036, ST06, LT01 
+
+[sqlfluff:templater:dbt]
+project_dir = dbt_core_telecoms
+profiles_dir = ~/.dbt
+
+# Set to false to prevent database connection attempts in CI and mock built-ins
+apply_dbt_builtins = false
+# Ensures all compilation logic is handled internally
+process_runner = false

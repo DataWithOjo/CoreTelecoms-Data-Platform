@@ -1,0 +1,12 @@
+venv310/
+*.tfvars
+.terraform.lock.hcl
+.terraform/
+.env
+config/
+logs/
+*.pyc
+**/__pycache__/
+google_credentials.json
+dbt_packages/
+dbt_core_telecoms/package-lock.yml

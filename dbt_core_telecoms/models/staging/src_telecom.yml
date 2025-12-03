@@ -1,0 +1,70 @@
+version: 2
+
+sources:
+  - name: telecom_raw
+    description: "Raw data ingested from S3 Data Lake (Postgres, CSV, JSON sources)"
+    database: CORETELECOMS_DW
+    schema: RAW
+    tables:
+      - name: customers
+        description: "List of customers extracted from CSV."
+        columns:
+          - name: customer_id
+            description: "Unique identifier for the customer."
+            tests:
+              - unique
+              - not_null
+          - name: email
+            tests:
+              - not_null
+
+      - name: agents
+        description: "List of support agents extracted from Google Sheets."
+        columns:
+          - name: id
+            description: "Agent ID."
+            tests:
+              - unique
+              - not_null
+
+      - name: call_center_logs
+        description: "Daily dump of call center activity logs."
+        columns:
+          - name: call_id
+            description: "Unique identifier for the call interaction."
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            tests:
+              - not_null
+          - name: agent_id
+            tests:
+              - not_null
+
+      - name: web_complaints
+        description: "Daily extract of web form submissions from Postgres."
+        columns:
+          - name: request_id
+            description: "Unique identifier for the web complaint."
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            tests:
+              - not_null
+
+      - name: social_media
+        description: "Daily social media complaint feed (Flattened from JSON)."
+        columns:
+          - name: complaint_id
+            description: "Unique identifier for the social media complaint."
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            tests:
+              - not_null
+          - name: media_channel
+            tests:
+              - not_null

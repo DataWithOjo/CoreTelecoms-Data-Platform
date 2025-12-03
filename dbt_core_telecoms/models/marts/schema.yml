@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: dim_customers
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_agents
+    columns:
+      - name: agent_id
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_calls
+    columns:
+      - name: call_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+      - name: agent_id
+        tests:
+          - relationships:
+              to: ref('dim_agents')
+              field: agent_id

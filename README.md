@@ -490,7 +490,8 @@ CORETELECOMS-DATA-PLATFORM/
 The ingestion layer is the gateway to the data platform. Its primary mandate is to decouple source systems from the warehouse, ensuring that only valid, schema-compliant data reaches Snowflake.
 
 ![ingestion image](docs/ingestion-graph.png)
-![ingestion list view](docs/ingestion-pipeline.png)
+![ingestion list view](docs/ingestion_pipeline.png)
+![ingestion success graph](docs/ingestion_success.png)
 
 **Core Objectives:**
 
@@ -878,6 +879,7 @@ The Transformation Layer acts as the bridge between raw data and business intell
 
 ![dbt pipeline](docs/dbt-graph.png)
 ![dbt list view](docs/dbt-pipeline.png)
+![dbt success graph](docs/dbt_success.png)
 
 **Core Objectives:**
 
